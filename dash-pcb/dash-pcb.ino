@@ -19,11 +19,13 @@
 // The I2C device. Determines which pins we use on the Teensy.
 I2CMaster& master = Master;
 
+//I2C addresses
+const uint8_t ACC_MAG_ADDR = 0x1F;
+const uint8_t GYR_ADDR = 0x21;
+
 //objects for the i2c sensors (adafruit 3463)
-const uint8_t acc_mag_addr = 0x1F;
-I2CDevice acc_mag = I2CDevice(master, acc_mag_addr, _BIG_ENDIAN);
-const uint8_t gyr_addr = 0x20;
-I2CDevice gyr = I2CDevice(master, gyr_addr, _BIG_ENDIAN);
+I2CDevice acc_mag = I2CDevice(master, ACC_MAG_ADDR, _BIG_ENDIAN);
+I2CDevice gyr = I2CDevice(master, GYR_ADDR, _BIG_ENDIAN);
 
 //addresses for relevant registers
 const uint8_t ACC_MAG_WHOAMI_REG = 0x0D;
@@ -33,13 +35,14 @@ const uint8_t GYR_WHOAMI_REG =  0x0C;
 const uint8_t GYR_CTRL_REG0 = 0x0D;
 const uint8_t GYR_CTRL_REG1 = 0x13;
 
-#define LOG_VERSION 2
+#define LOG_VERSION 3
 
 FlexCAN_T4<CAN1, RX_SIZE_16, TX_SIZE_16> can1;
 CAN_message_t msg;
 
 //microseconds between each reading
 #define IMU_MICROS_INCR 1400
+#define IMU_CHECK_MICROS_INCR 100000
 #define SD_MICROS_INCR 10000000
 #define ANALOG_READ_MICROS_INCR 200000
 
@@ -49,14 +52,15 @@ unsigned long next_sd_write_micros;
 unsigned long next_analog_read_micros;
 
 //path to log file on sd card
-char log_name[] = {'X','X','X','X','/','0','0','0','0','.','c','s','v','\0'};
+char log_name[] = {'X','X','X','X','/','l','o','g','.','c','s','v','\0'};
 char directory_name[] = {'X','X','X','X','\0'};
 File log_file;
 
 void setup(void) {
 
+  //Set up communication with plugged in laptop if there is one
   Serial.begin(115200);
-  //Blink LED, wait for Serial
+  //Turn on on-board LED, wait for Serial
   pinMode(13, OUTPUT);
   digitalWrite(13, HIGH);
   delay(400);
@@ -65,8 +69,8 @@ void setup(void) {
   Serial.println("");
 
   prep_SD();
-  log_file.flush();
 
+  //Initialize the CAN bus at 500kbps
   Serial.println("Initializing CAN bus...");
   can1.begin();
   can1.setBaudRate(500000);
@@ -74,12 +78,13 @@ void setup(void) {
   log_pair("MSG", "CAN init done");
   log_file.flush();
 
-  // Initialise the I2C bus
+  // Initialise the I2C bus at 400kbps
   master.begin(400 * 1000U);
   Serial.println("I2C initialized.");
   log_pair("MSG", "I2C init done");
   log_file.flush(); 
 
+  // Initialize accelerometer and gyroscope
   prep_3463();
   log_file.flush();
 
@@ -95,27 +100,16 @@ void setup(void) {
 void loop(void) {
   
   read_3463();
-
   read_CAN();
-
-  if(micros() > next_analog_read_micros){
-    log_pair("A1",String(analogRead(A1)));
-    next_analog_read_micros = micros() + ANALOG_READ_MICROS_INCR;
-  }
-
+  read_A1();
   log_file.flush();
-
-  if(micros() > next_sd_write_micros){
-    new_log_file();
-    next_sd_write_micros = micros() + SD_MICROS_INCR;
-  }
   
 }
 
 //Initialize the adafruit 3463
 void prep_3463(){
   
-  next_imu_micros = micros();
+  next_imu_micros = micros() + IMU_MICROS_INCR;
   uint8_t result_byte;
   
   Serial.println("Attempting communication with ACC_MAG");
@@ -166,41 +160,6 @@ void prep_3463(){
   
 }
 
-void new_log_file(){
-
-  log_pair("MSG", "closing file");
-  log_file.close();
-  Serial.println("Making new log file...");
-  Serial.println("Finding unused log_name...");
-  for(int a = 0; a < 10; a++){
-    for(int b = 0; b < 10; b++){
-      for(int c = 0; c < 10; c++){
-        for(int d = 0; d < 10; d++){
-          log_name[5] = (char) (a + 48);
-          log_name[6] = (char) (b + 48);
-          log_name[7] = (char) (c + 48);
-          log_name[8] = (char) (d + 48);
-          if(!SD.exists(log_name)){
-            goto filefound;
-          }
-        }
-      }
-    }
-  }
-  Serial.println("ERROR: All possible file names taken");
-  
-  filefound:
-  log_file = SD.open(log_name, FILE_WRITE);
-  Serial.print("Starting log file ");
-  Serial.println(log_name);
-  if(log_file){
-    Serial.println("Log file started.");
-    log_pair("LOGNAME", String(log_name));
-  }else{
-    Serial.println("Could not create log file.");
-  }
-}
-
 void prep_SD(){
   
   Serial.println("Initializing SD card...");
@@ -211,6 +170,7 @@ void prep_SD(){
   }
   
   Serial.println("Finding unused directory...");
+  // Set a, b, c, d to the first available 4 digits for a directory name
   for(int a = 0; a < 10; a++){
     for(int b = 0; b < 10; b++){
       for(int c = 0; c < 10; c++){
@@ -229,13 +189,15 @@ void prep_SD(){
   Serial.println("ERROR: All possible directory names taken");
   
   dirfound:
+  //Set the name of the log file to include the chosen directory
   log_name[0] = directory_name[0];
   log_name[1] = directory_name[1];
   log_name[2] = directory_name[2];
   log_name[3] = directory_name[3];
   SD.mkdir(directory_name);
+  
   log_file = SD.open(log_name, FILE_WRITE);
-  Serial.print("Starting log files at ");
+  Serial.print("Starting log file at ");
   Serial.println(directory_name);
   if(log_file){
     Serial.println("Log file started.");
@@ -245,6 +207,16 @@ void prep_SD(){
   }
 
   log_pair("VER", String(LOG_VERSION));
+  log_file.flush();
+}
+
+void read_A1(){
+
+  if(micros() > next_analog_read_micros){
+    log_pair("A1",String(analogRead(A1)));
+    next_analog_read_micros = micros() + ANALOG_READ_MICROS_INCR;
+  }
+
 }
 
 //Read data for the adafruit 3463 if enough time has passed
@@ -256,53 +228,34 @@ void read_3463(){
   //Storage for the 7 bytes that will be sent back by each communication
   uint8_t response[7];
   //Sum of shifted MSB and LSB
-  int16_t total;
+  short total;
   //Data scaled to a more understandable unit
-  int32_t converted_total_x;
-  int32_t converted_total_y;
-  int32_t converted_total_z;
-  int32_t converted_total;
+  int converted_total_x;
+  int converted_total_y;
+  int converted_total_z;
+  //Message that will be logged
+  char log_message[128];
 
   //Get data from accelerometer output registers
   acc_mag.read(0x00, response, 7, false);
   
   if(!(response[0] & 0b111)){
     log_pair("MSG", "Accelerometer not ready");
-    log_pair("ACCS", String(response[0] + 0x100, BIN));
   } else{
     //combine 6 bits MSB in response[1] with 8 bits LSB in [2]
     total = (int16_t)(((response[1] << 8) | response[2])) >> 2;
     //convert from arbitrary bit value to ug and log
-    converted_total_x = total;
-    converted_total_x *= 488;
+    converted_total_x = ((int)total) * 488;
 
     total = (int16_t)(((response[3] << 8) | response[4])) >> 2;
-    converted_total_y = total;
-    converted_total_y *= 488;
+    converted_total_y = ((int)total) * 488;
 
     total = (int16_t)(((response[5] << 8) | response[6])) >> 2;
-    converted_total_z = total;
-    converted_total_z *= 488;
+    converted_total_z = ((int)total) * 488;
 
-    log_file.print("ACC,");
-    log_file.print(micros());
-    log_file.print(',');
-    log_file.print(converted_total_x);
-    log_file.print(',');
-    log_file.print(converted_total_y);
-    log_file.print(',');
-    log_file.println(converted_total_z);
-
-    #ifdef LOG_DATA_TO_SERIAL
-    Serial.print("ACC,");
-    Serial.print(micros());
-    Serial.print(',');
-    Serial.print(converted_total_x);
-    Serial.print(',');
-    Serial.print(converted_total_y);
-    Serial.print(',');
-    Serial.println(converted_total_z);
-    #endif
+    //unit is ug, or one millionth of the acceleration due to gravity
+    sprintf(log_message, "%i,%i,%i", converted_total_x, converted_total_y, converted_total_z);
+    log_pair("ACC",log_message);
   }
 
   //Get data from gyroscope output registers
@@ -310,46 +263,41 @@ void read_3463(){
   
   if(!(response[0] & 0b111)){
     log_pair("MSG", "Gyroscope not ready");
-    log_pair("GYRS", String(response[0] + 0x100, BIN));
+    prep_3463();
   } else{
 
     //combine 8 bits MSB in response[1] with 8 bits LSB in [2]
-    total = (int16_t)(((response[1] << 8) | response[2]));
+    total = (short)(((response[1] << 8) | response[2]));
     //convert from arbitrary bit value to mdps and log
-    converted_total = total;
-    converted_total = converted_total * 125 / 16;
-    log_pair("GYRX", String(converted_total));
+    converted_total_x = ((int)total) * 125 / 16;
   
-    total = (int16_t)(((response[3] << 8) | response[4]));
-    converted_total = total;
-    converted_total = converted_total * 125 / 16;
-    log_pair("GYRY", String(converted_total));
+    total = (short)(((response[3] << 8) | response[4]));
+    converted_total_y = ((int)total) * 125 / 16;
   
-    total = (int16_t)(((response[5] << 8) | response[6]));
-    converted_total = total;
-    converted_total = converted_total * 125 / 16;
-    log_pair("GYRZ", String(converted_total));
+    total = (short)(((response[5] << 8) | response[6]));
+    converted_total_z = ((int)total) * 125 / 16;
+
+    //unit is mdps, or thousandths of a degree per second
+    sprintf(log_message, "%i,%i,%i", converted_total_x, converted_total_y, converted_total_z);
+    log_pair("GYR",log_message);
 
   }
 
   //Set time for next reading
   next_imu_micros = max(micros(), next_imu_micros + IMU_MICROS_INCR);
-    
+
 }
 
 void read_CAN(){
 
   while ( can1.read(msg) ) {
 
-    unsigned long can_micros = micros();
+    //create an empty string
     char data_string[100] = {0};
-    sprintf(data_string,"CAN,%d,%d,%08X,%02X%02X%02X%02X%02X%02X%02X%02X",can_micros,msg.flags.extended,msg.id,msg.buf[0],msg.buf[1],msg.buf[2],msg.buf[3],msg.buf[4],msg.buf[5],msg.buf[6],msg.buf[7]);
-
-    #ifdef LOG_DATA_TO_SERIAL
-    Serial.println(data_string);
-    #endif
-    
-    log_file.println(data_string);
+    //fill the string with the formatted data
+    sprintf(data_string,"%i,%08lX,%02X%02X%02X%02X%02X%02X%02X%02X",msg.flags.extended,msg.id,msg.buf[0],msg.buf[1],msg.buf[2],msg.buf[3],msg.buf[4],msg.buf[5],msg.buf[6],msg.buf[7]);
+    //log that with CAN message name and timestamp attached
+    log_pair("CAN",data_string);
 
   }
   
