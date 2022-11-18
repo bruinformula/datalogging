@@ -35,21 +35,26 @@ const uint8_t GYR_WHOAMI_REG =  0x0C;
 const uint8_t GYR_CTRL_REG0 = 0x0D;
 const uint8_t GYR_CTRL_REG1 = 0x13;
 
+int tele_data_int[9]; // intList: ACCX, ACCY, ACCZ, GYRX, GYRY, GYRZ, A1, intakeTemp(C), coolantTemp(C)
+float tele_data_float[3]; // floatList: engineSpeed(RPM), engineLoad(%), throttle(%)
+
 #define LOG_VERSION 3
 
 FlexCAN_T4<CAN1, RX_SIZE_16, TX_SIZE_16> can1;
 CAN_message_t msg;
 
 //microseconds between each reading
-#define IMU_MICROS_INCR 1400
-#define IMU_CHECK_MICROS_INCR 100000
-#define SD_MICROS_INCR 10000000
-#define ANALOG_READ_MICROS_INCR 200000
+#define IMU_MICROS_INCR             1400
+#define IMU_CHECK_MICROS_INCR     100000
+#define SD_MICROS_INCR          10000000
+#define ANALOG_READ_MICROS_INCR   200000
+#define REALTIME_TELE_MICROS_INCR  90000
 
 //next time a reading should be taken
 unsigned long next_imu_micros;
 unsigned long next_sd_write_micros;
 unsigned long next_analog_read_micros;
+unsigned long next_realtime_tele_micros;
 
 //path to log file on sd card
 char log_name[] = {'X','X','X','X','/','l','o','g','.','c','s','v','\0'};
@@ -57,7 +62,6 @@ char directory_name[] = {'X','X','X','X','\0'};
 File log_file;
 
 void setup(void) {
-
   //Set up communication with plugged in laptop if there is one
   Serial.begin(115200);
   //Turn on on-board LED, wait for Serial
@@ -67,9 +71,9 @@ void setup(void) {
   
   Serial.println("---BEGIN---");
   Serial.println("");
-
+  
   prep_SD();
-
+  
   //Initialize the CAN bus at 500kbps
   Serial.println("Initializing CAN bus...");
   can1.begin();
@@ -77,24 +81,25 @@ void setup(void) {
   Serial.println("CAN bus initialized.");
   log_pair("MSG", "CAN init done");
   log_file.flush();
-
+  
   // Initialise the I2C bus at 400kbps
   master.begin(400 * 1000U);
   Serial.println("I2C initialized.");
   log_pair("MSG", "I2C init done");
-  log_file.flush(); 
-
+  log_file.flush();
+  
   // Initialize accelerometer and gyroscope
   prep_3463();
   log_file.flush();
-
+  
   Serial.println("Sending CAN message");
   log_pair("MSG", "Sending CAN test message");
   msg.id = 0x12;
   msg.buf[0] = 12;
   msg.buf[1] = 13;
   can1.write(msg);
-
+  
+  Serial1.begin(9600); // to ESP8266 Telemetry
 }
 
 void loop(void) {
@@ -102,6 +107,7 @@ void loop(void) {
   read_3463();
   read_CAN();
   read_A1();
+  wireless_tele();
   log_file.flush();
   
 }
@@ -113,9 +119,9 @@ void prep_3463(){
   uint8_t result_byte;
   
   Serial.println("Attempting communication with ACC_MAG");
-
+  
   acc_mag.read(ACC_MAG_WHOAMI_REG, &result_byte, false);
-
+  
   if(result_byte != 0xC7){
     Serial.print("ERROR: accel mag wrong who_am_i, reported 0x");
     Serial.println(result_byte, HEX);
@@ -127,9 +133,9 @@ void prep_3463(){
   }
   
   Serial.println("Attempting communication with GYR");
-
+  
   acc_mag.read(GYR_WHOAMI_REG, &result_byte, false);
-
+  
   if(result_byte != 0b11010111){
     Serial.print("ERROR: gyr wrong who_am_i, reported 0x");
     Serial.println(result_byte, HEX);
@@ -139,25 +145,23 @@ void prep_3463(){
     Serial.println("GYR sensor found");
     log_file.println("MSG,gyr found");
   }
-
-
+  
   uint8_t msg;
-
+  
   //accelerometer in +/- 4g max mode
   msg = 0b00000001;
   acc_mag.write(ACC_MAG_XYZ_DATA_CFG_REG, msg, false);
   //accelerometer in active mode, max data rate
   msg = 0b00000001;
   acc_mag.write(ACC_MAG_CTRL_REG_1, msg, false);
-
-  // +/- 250dps 
+  
+  // +/- 250dps
   msg = 0b00000011;
   gyr.write(GYR_CTRL_REG0, msg, false);
-
+  
   //800Hz, active
   msg = 0b00000011;
   gyr.write(GYR_CTRL_REG1, msg, false);
-  
 }
 
 void prep_SD(){
@@ -205,23 +209,14 @@ void prep_SD(){
   }else{
     Serial.println("Could not create log file.");
   }
-
+  
   log_pair("VER", String(LOG_VERSION));
   log_file.flush();
 }
 
-void read_A1(){
-
-  if(micros() > next_analog_read_micros){
-    log_pair("A1",String(analogRead(A1)));
-    next_analog_read_micros = micros() + ANALOG_READ_MICROS_INCR;
-  }
-
-}
-
 //Read data for the adafruit 3463 if enough time has passed
 void read_3463(){
-
+  
   //If current time is past time for next reading, do reading
   if(micros() < next_imu_micros) return;
   
@@ -235,70 +230,98 @@ void read_3463(){
   int converted_total_z;
   //Message that will be logged
   char log_message[128];
-
+  
   //Get data from accelerometer output registers
   acc_mag.read(0x00, response, 7, false);
   
   if(!(response[0] & 0b111)){
     log_pair("MSG", "Accelerometer not ready");
+    tele_data_int[0]=0;tele_data_int[1]=0;tele_data_int[2]=0;
   } else{
     //combine 6 bits MSB in response[1] with 8 bits LSB in [2]
     total = (int16_t)(((response[1] << 8) | response[2])) >> 2;
     //convert from arbitrary bit value to ug and log
     converted_total_x = ((int)total) * 488;
-
+    
     total = (int16_t)(((response[3] << 8) | response[4])) >> 2;
     converted_total_y = ((int)total) * 488;
-
+    
     total = (int16_t)(((response[5] << 8) | response[6])) >> 2;
     converted_total_z = ((int)total) * 488;
-
+    
     //unit is ug, or one millionth of the acceleration due to gravity
     sprintf(log_message, "%i,%i,%i", converted_total_x, converted_total_y, converted_total_z);
     log_pair("ACC",log_message);
+    tele_data_int[0]=converted_total_x;tele_data_int[1]=converted_total_y;tele_data_int[2]=converted_total_z;
   }
-
+  
   //Get data from gyroscope output registers
   gyr.read(0x00, response, 7, false);
   
   if(!(response[0] & 0b111)){
     log_pair("MSG", "Gyroscope not ready");
     prep_3463();
+    tele_data_int[3]=0;tele_data_int[4]=0;tele_data_int[5]=0;
   } else{
-
+    
     //combine 8 bits MSB in response[1] with 8 bits LSB in [2]
     total = (short)(((response[1] << 8) | response[2]));
     //convert from arbitrary bit value to mdps and log
     converted_total_x = ((int)total) * 125 / 16;
-  
+    
     total = (short)(((response[3] << 8) | response[4]));
     converted_total_y = ((int)total) * 125 / 16;
-  
+    
     total = (short)(((response[5] << 8) | response[6]));
     converted_total_z = ((int)total) * 125 / 16;
-
+    
     //unit is mdps, or thousandths of a degree per second
     sprintf(log_message, "%i,%i,%i", converted_total_x, converted_total_y, converted_total_z);
     log_pair("GYR",log_message);
-
+    tele_data_int[3]=converted_total_x;tele_data_int[4]=converted_total_y;tele_data_int[5]=converted_total_z;
+  
   }
-
+  
   //Set time for next reading
   next_imu_micros = max(micros(), next_imu_micros + IMU_MICROS_INCR);
-
+  
 }
 
 void read_CAN(){
 
   while ( can1.read(msg) ) {
-
+    
     //create an empty string
     char data_string[100] = {0};
     //fill the string with the formatted data
-    sprintf(data_string,"%i,%08lX,%02X%02X%02X%02X%02X%02X%02X%02X",msg.flags.extended,msg.id,msg.buf[0],msg.buf[1],msg.buf[2],msg.buf[3],msg.buf[4],msg.buf[5],msg.buf[6],msg.buf[7]);
+    sprintf(data_string,"%i,%08lX,%02X%02X%02X%02X%02X%02X%02X%02X",
+    msg.flags.extended,msg.id,msg.buf[0],msg.buf[1],msg.buf[2],
+    msg.buf[3],msg.buf[4],msg.buf[5],msg.buf[6],msg.buf[7]);
+
+    if(msg.id == 0x01F0A000){
+      /* 
+        msg.buf[0:5]: 0-255 (uint8_t)
+        tele: need to convert to actual data
+      */
+      tele_data_float[0] = ((msg.buf[0])*256+msg.buf[1])*0.39063;
+      tele_data_float[1] = ((msg.buf[2])*256+msg.buf[3])*0.00261230481157781;
+      tele_data_float[2] = ((msg.buf[4])*256+msg.buf[5])*0.0015259;
+      tele_data_int[7] = msg.buf[6];
+      tele_data_int[8] = msg.buf[7];
+    }
+    
     //log that with CAN message name and timestamp attached
     log_pair("CAN",data_string);
+    //Serial1.println(data_string);
+  }
+}
 
+void read_A1(){
+  
+  if(micros() > next_analog_read_micros){
+    tele_data_int[6]=analogRead(A1);
+    log_pair("A1",String(tele_data_int[6]));
+    next_analog_read_micros = micros() + ANALOG_READ_MICROS_INCR;
   }
   
 }
@@ -318,3 +341,18 @@ void log_pair(String s1, String s2){
   Serial.println(s2);
   #endif
 }
+
+//send string for wireless telementry
+void wireless_tele(){
+  
+  if(micros() > next_realtime_tele_micros){
+    
+    char data_string[100] = {0};
+    // ACCX,ACCY,ACCZ|GYRX,GYRY,GYRZ|A1|engineSpeed(RPM)|engineLoad(%)|throttle(%)|intakeTemp(C)|coolantTemp(C)|currentTime(ms)|
+    sprintf(data_string,"%i,%i,%i|%i,%i,%i|%i|%.3f|%.3f|%.3f|%d|%d|%d|\n",
+    tele_data_int[0],tele_data_int[1],tele_data_int[2],tele_data_int[3],tele_data_int[4],tele_data_int[5],tele_data_int[6],
+    tele_data_float[0],tele_data_float[1],tele_data_float[2],tele_data_int[7],tele_data_int[8],millis());
+    Serial1.print(data_string);
+    
+    next_realtime_tele_micros = micros() + REALTIME_TELE_MICROS_INCR;
+  }
