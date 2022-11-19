@@ -1,25 +1,23 @@
 const char MAIN_page[] PROGMEM = R"=====(
-  <!DOCTYPE html>
+<!DOCTYPE html>
   <html>
     <style>
       body{
-        background-color: #fafafa;
+        background-color: #FAFAFA;
       }
       table, th, td{
         border:1px solid black;
       }
-      
       .card{
         max-width: 960px;
         min-height: 540px;
-        background: #02b875;
+        background: #02B875;
         padding: 30px;
         box-sizing: border-box;
         color: #FFF;
         margin:20px;
         box-shadow: 0px 2px 18px -4px rgba(0,0,0,0.75);
       }
-
       .barcontainerV{
         background-color: #181818;
         position: relative;
@@ -28,7 +26,6 @@ const char MAIN_page[] PROGMEM = R"=====(
         display: inline-block;
         margin-top: 4px;
       }
-      
       .barV{
         background-color: #9BC9C7;
         position: absolute;
@@ -38,7 +35,6 @@ const char MAIN_page[] PROGMEM = R"=====(
         box-sizing: border-box;
         transform-origin: bottom;
       }
-
       .GYROcircle{
         height: 180px;
         width: 180px;
@@ -60,77 +56,73 @@ const char MAIN_page[] PROGMEM = R"=====(
         text-align: center;
       }
     </style>
-
     <body>
-      <div class="card"> 
+      <div class="card">
         <!-- text displayed in the card -->
         <h4>Update web page without refresh</h4>
         <h4 id="rawDataStr">raw data string</h4>
+        <span id="data0">data</span>
+        <span id="data1">data</span>
         <table>
           <!-- data table -->
-          <tr>  
+          <tr>
             <!-- data titles -->
-            <td style="width:200px">Data0</td>
-            <td style="width:100px">Data1</td>
-            <td style="width:100px">Data2</td>
+            <td style="width:10%">ExhaustTemp(C)</td>
+            <td style="width:10%">Engine(RPM)</td>
+            <td style="width:10%">Throttle(%)</td>
+            <td style="width:10%">Intaketemp(C)</td>
+            <td style="width:10%">CoolTemp(C)</td>
           </tr>
           <tr>
             <!-- data values -->
-            <td><span id="data0">0</span></td>
-            <td><span id="data1">0</span></td>
             <td><span id="data2">0</span></td>
+            <td><span id="data3">0</span></td>
+            
+            <td><span id="data5">0</span></td>
+            <td><span id="data6">0</span></td>
+            <td><span id="data7">0</span></td>
           </tr>
           <tr>
             <!-- data visulize -->
-            <td style="text-align:center">
-              <div class="GYROcircle">
-                <div class="GYROdot" id="GYROdot1">
-                </div>
-              </div>
-            </td>
+            <td></td>
             <td style="text-align:center">
               <div class="barcontainerV">
                 <div class="barV" id="barV1">
                 </div>
               </div>
             </td>
-            <td>
-            </td>
+            <td></td>
+            <td></td>
+            <td></td>
           </tr>
         </table>
       </div>
-
-
-
       <script>
         // JavaScript
-
         // set refresh rate in Hz
         var refreshRate_Hz = 10;
         // Call this function repetatively with time interval in ms
         setInterval(function() { getData(); }, 1000/refreshRate_Hz);
-
         // get data from ESP
         function getData() {
           var xhttp = new XMLHttpRequest();
           xhttp.onreadystatechange = function() {
-            if (this.readyState == 4 && this.status == 200) { 
+            if (true) {
               // actual code:         this.readyState == 4 && this.status == 200
               // test code:           true
-              const rawDataStr = this.responseText;
+              const rawDataStr = "10,20,30|40,50,60|500|3000|70|80|25|30|20|";
               // actual code:         this.responseText
-              // test code:           "-65,23|80.415|231.54|"
-              // current data receiving w/ format: 
+              // test code:           "10,20,30|40,50,60|500|3000|70|80|25|30|20|"
+              // current data receiving w/ format:
                 // ACCX,ACCY,ACCZ|GYRX,GYRY,GYRZ|A1|engineSpeed(RPM)|engineLoad(%)|throttle(%)|intakeTemp(C)|coolantTemp(C)|currentTime(ms)|
               document.getElementById("rawDataStr").innerHTML = rawDataStr;
-              processData(rawDataStr); 
+              processData(rawDataStr);
               window.AppInventor.setWebViewString("" + this.responseText);  // RESPUESTA A CadenaDeWebView
             }
           };
           xhttp.open("GET", "readADC", true);
           xhttp.send();
         }
-
         function processData(allDataStr) {
           const dataValues = [];
           var n0 = 0;
@@ -140,41 +132,25 @@ const char MAIN_page[] PROGMEM = R"=====(
               singleDataStr += allDataStr[i];
             }
             else {
-
-              var n1 = 0;
-              const subDataValues = [];
-              var singleSubDataStr = "";
-              for(var j = 0;j < singleDataStr.length;j++) {
-                if(singleDataStr[j] != ','){
-                    singleSubDataStr += singleDataStr[j];
-                }
-                else{
-                    subDataValues[n1]=singleSubDataStr;
-                    n1++;
-                    singleSubDataStr="";
-                }
-              }
-              subDataValues[n1]=singleSubDataStr;
-
-              dataValues[n0] = subDataValues;
+              dataValues[n0] = singleDataStr;
               n0++;
               singleDataStr = "";
             }
           }
           
+          dataValues[2] = ((parseInt(dataValues[2]) * 3.3 / 1024 * 5 / 3.2 - 1.25)/0.005).toFixed(0).toString();
+          
           for(var i=0;i<n0;i++){
-            document.getElementById("data"+i.toString()).innerHTML = dataValues[i];
+            var element = document.getElementById("data"+i.toString());
+            if(element){
+              element.innerHTML = dataValues[i];
+            }
           }
-
-          // gyro visulize
-          // 0-80-160px
-          var GyroX=parseFloat(dataValues[0][0])/100*80+80;
-          var GyroY=parseFloat(dataValues[0][1])/100*80+80;
-          document.getElementById("GYROdot1").style.left = GyroX.toString()+"px";
-          document.getElementById("GYROdot1").style.top = GyroY.toString()+"px";
-
+          
+          //engine RPM max: 13,000
+          var enginePercent = (parseFloat(dataValues[3])/13000*100).toString();
           //throttle visulize
-          document.getElementById("barV1").style.height = dataValues[1]+"%";
+          document.getElementById("barV1").style.height = enginePercent+"%";
         }
       </script>
     </body>
