@@ -1,4 +1,3 @@
-const char MAIN_page[] PROGMEM = R"=====(
 <!DOCTYPE html>
   <html>
     <style>
@@ -144,10 +143,10 @@ const char MAIN_page[] PROGMEM = R"=====(
         function getData() {
           var xhttp = new XMLHttpRequest();
           xhttp.onreadystatechange = function() {
-            if (this.readyState == 4 && this.status == 200) {
+            if (true) {
               // actual code:         this.readyState == 4 && this.status == 200
               // test code:           true
-              const rawDataStr = this.responseText;
+              const rawDataStr = "10,20,30|40,50,60|500|23,124|42,70|16,80|25|30|20|";
               // actual code:         this.responseText
               // test code:           "10,20,30|40,50,60|500|23,124|42,70|16,80|25|30|20|"
               // current data receiving w/ format:
@@ -221,4 +220,3 @@ const char MAIN_page[] PROGMEM = R"=====(
       </script>
     </body>
   </html>
-)=====";

@@ -36,7 +36,9 @@ const uint8_t GYR_CTRL_REG0 = 0x0D;
 const uint8_t GYR_CTRL_REG1 = 0x13;
 
 int tele_data_int[9]; // intList: ACCX, ACCY, ACCZ, GYRX, GYRY, GYRZ, A1, intakeTemp(C), coolantTemp(C)
-float tele_data_float[3]; // floatList: engineSpeed(RPM), engineLoad(%), throttle(%)
+int tele_data_2Bytes[3][2]; // list for 2-byte data: engineSpeed(RPM), engineLoad(%), throttle(%)
+int tele_data_more[20];// more data
+// changed all to int, send only buffer values; further conversion done by html code
 
 #define LOG_VERSION 3
 
@@ -299,15 +301,27 @@ void read_CAN(){
     msg.buf[3],msg.buf[4],msg.buf[5],msg.buf[6],msg.buf[7]);
 
     if(msg.id == 0x01F0A000){
+      // 01F0A000: EngSpd,EngLoad,Thro,inTemp,coTemp
       /* 
         msg.buf[0:5]: 0-255 (uint8_t)
         tele: need to convert to actual data
       */
-      tele_data_float[0] = ((msg.buf[0])*256+msg.buf[1])*0.39063;
-      tele_data_float[1] = ((msg.buf[2])*256+msg.buf[3])*0.00261230481157781;
-      tele_data_float[2] = ((msg.buf[4])*256+msg.buf[5])*0.0015259;
-      tele_data_int[7] = msg.buf[6];
-      tele_data_int[8] = msg.buf[7];
+      tele_data_2Bytes[0][0] = msg.buf[0];tele_data_2Bytes[0][1] = msg.buf[1]; // engine_speed
+      tele_data_2Bytes[1][0] = msg.buf[2];tele_data_2Bytes[1][1] = msg.buf[3]; // engine_load
+      tele_data_2Bytes[2][0] = msg.buf[4];tele_data_2Bytes[2][1] = msg.buf[5]; // throttle
+      tele_data_int[7] = msg.buf[6]; // intake_air_temp
+      tele_data_int[8] = msg.buf[7]; // coolant_temp
+    }
+    else if(msg.id == 0x01F0A003){
+      tele_data_more[0] = msg.buf[0];// lambda1
+      tele_data_more[1] = msg.buf[5];// ign_timing
+      tele_data_more[2] = ((msg.buf[6])*256+msg.buf[7]);// battery_volts
+    }
+    else if(msg.id == 0x01F0A004){
+      tele_data_more[3] = msg.buf[2];// ve
+      tele_data_more[4] = ((msg.buf[0])*256+msg.buf[1]);// manifold_pressure
+      tele_data_more[5] = msg.buf[3];// fuel_pressure
+      tele_data_more[6] = msg.buf[5];// lambda_target
     }
     
     //log that with CAN message name and timestamp attached
@@ -349,9 +363,10 @@ void wireless_tele(){
     
     char data_string[100] = {0};
     // ACCX,ACCY,ACCZ|GYRX,GYRY,GYRZ|A1|engineSpeed(RPM)|engineLoad(%)|throttle(%)|intakeTemp(C)|coolantTemp(C)|currentTime(ms)|
-    sprintf(data_string,"%i,%i,%i|%i,%i,%i|%i|%.3f|%.3f|%.3f|%d|%d|%d|\n",
+    sprintf(data_string,"%d,%d,%d|%d,%d,%d|%d|%d,%d|%d,%d|%d,%d|%d|%d|%d|\n",
     tele_data_int[0],tele_data_int[1],tele_data_int[2],tele_data_int[3],tele_data_int[4],tele_data_int[5],tele_data_int[6],
-    tele_data_float[0],tele_data_float[1],tele_data_float[2],tele_data_int[7],tele_data_int[8],millis());
+    tele_data_2Bytes[0][0],tele_data_2Bytes[0][1],tele_data_2Bytes[1][0],tele_data_2Bytes[1][1],tele_data_2Bytes[2][0],tele_data_2Bytes[2][1],
+    tele_data_int[7],tele_data_int[8],millis());
     Serial1.print(data_string);
     
     next_realtime_tele_micros = micros() + REALTIME_TELE_MICROS_INCR;
