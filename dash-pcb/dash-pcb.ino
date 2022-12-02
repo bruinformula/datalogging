@@ -35,9 +35,9 @@ const uint8_t GYR_WHOAMI_REG =  0x0C;
 const uint8_t GYR_CTRL_REG0 = 0x0D;
 const uint8_t GYR_CTRL_REG1 = 0x13;
 
-int tele_data_int[9]; // intList: ACCX, ACCY, ACCZ, GYRX, GYRY, GYRZ, A1, intakeTemp(C), coolantTemp(C)
-int tele_data_2Bytes[3][2]; // list for 2-byte data: engineSpeed(RPM), engineLoad(%), throttle(%)
-int tele_data_more[20];// more data
+int tele_data_1B[10]; // intList: ACCX, ACCY, ACCZ, GYRX, GYRY, GYRZ, exTemp(C), intakeTemp(C), coolantTemp(C), lambda1
+int tele_data_2B[4][2]; // list for 2-byte data: engineSpeed(RPM), engineLoad(%), throttle(%), MAP(kPa)
+bool tele_data_fan1; // fan 1 status
 // changed all to int, send only buffer values; further conversion done by html code
 
 #define LOG_VERSION 3
@@ -238,7 +238,7 @@ void read_3463(){
   
   if(!(response[0] & 0b111)){
     log_pair("MSG", "Accelerometer not ready");
-    tele_data_int[0]=0;tele_data_int[1]=0;tele_data_int[2]=0;
+    tele_data_1B[0]=0;tele_data_1B[1]=0;tele_data_1B[2]=0;
   } else{
     //combine 6 bits MSB in response[1] with 8 bits LSB in [2]
     total = (int16_t)(((response[1] << 8) | response[2])) >> 2;
@@ -254,7 +254,7 @@ void read_3463(){
     //unit is ug, or one millionth of the acceleration due to gravity
     sprintf(log_message, "%i,%i,%i", converted_total_x, converted_total_y, converted_total_z);
     log_pair("ACC",log_message);
-    tele_data_int[0]=converted_total_x;tele_data_int[1]=converted_total_y;tele_data_int[2]=converted_total_z;
+    tele_data_1B[0]=converted_total_x;tele_data_1B[1]=converted_total_y;tele_data_1B[2]=converted_total_z;
   }
   
   //Get data from gyroscope output registers
@@ -263,7 +263,7 @@ void read_3463(){
   if(!(response[0] & 0b111)){
     log_pair("MSG", "Gyroscope not ready");
     prep_3463();
-    tele_data_int[3]=0;tele_data_int[4]=0;tele_data_int[5]=0;
+    tele_data_1B[3]=0;tele_data_1B[4]=0;tele_data_1B[5]=0;
   } else{
     
     //combine 8 bits MSB in response[1] with 8 bits LSB in [2]
@@ -280,7 +280,7 @@ void read_3463(){
     //unit is mdps, or thousandths of a degree per second
     sprintf(log_message, "%i,%i,%i", converted_total_x, converted_total_y, converted_total_z);
     log_pair("GYR",log_message);
-    tele_data_int[3]=converted_total_x;tele_data_int[4]=converted_total_y;tele_data_int[5]=converted_total_z;
+    tele_data_1B[3]=converted_total_x;tele_data_1B[4]=converted_total_y;tele_data_1B[5]=converted_total_z;
   
   }
   
@@ -306,22 +306,18 @@ void read_CAN(){
         msg.buf[0:5]: 0-255 (uint8_t)
         tele: need to convert to actual data
       */
-      tele_data_2Bytes[0][0] = msg.buf[0];tele_data_2Bytes[0][1] = msg.buf[1]; // engine_speed
-      tele_data_2Bytes[1][0] = msg.buf[2];tele_data_2Bytes[1][1] = msg.buf[3]; // engine_load
-      tele_data_2Bytes[2][0] = msg.buf[4];tele_data_2Bytes[2][1] = msg.buf[5]; // throttle
-      tele_data_int[7] = msg.buf[6]; // intake_air_temp
-      tele_data_int[8] = msg.buf[7]; // coolant_temp
+      tele_data_2B[0][0] = msg.buf[0]; tele_data_2B[0][1] = msg.buf[1]; // engine_speed
+      tele_data_2B[1][0] = msg.buf[2]; tele_data_2B[1][1] = msg.buf[3]; // engine_load
+      tele_data_2B[2][0] = msg.buf[4]; tele_data_2B[2][1] = msg.buf[5]; // throttle
+      tele_data_1B[7] = msg.buf[6]; // intake_air_temp
+      tele_data_1B[8] = msg.buf[7]; // coolant_temp
     }
     else if(msg.id == 0x01F0A003){
-      tele_data_more[0] = msg.buf[0];// lambda1
-      tele_data_more[1] = msg.buf[5];// ign_timing
-      tele_data_more[2] = ((msg.buf[6])*256+msg.buf[7]);// battery_volts
+      tele_data_1B[9] = msg.buf[0];// lambda1
     }
     else if(msg.id == 0x01F0A004){
-      tele_data_more[3] = msg.buf[2];// ve
-      tele_data_more[4] = ((msg.buf[0])*256+msg.buf[1]);// manifold_pressure
-      tele_data_more[5] = msg.buf[3];// fuel_pressure
-      tele_data_more[6] = msg.buf[5];// lambda_target
+      tele_data_2B[3][0] = msg.buf[0]; tele_data_2B[3][1] = msg.buf[1]; // MAP
+      tele_data_fan1 = (msg.buf[6] & 0b00000010);
     }
     
     //log that with CAN message name and timestamp attached
@@ -333,8 +329,8 @@ void read_CAN(){
 void read_A1(){
   
   if(micros() > next_analog_read_micros){
-    tele_data_int[6]=analogRead(A1);
-    log_pair("A1",String(tele_data_int[6]));
+    tele_data_1B[6]=analogRead(A1);
+    log_pair("A1",String(tele_data_1B[6]));
     next_analog_read_micros = micros() + ANALOG_READ_MICROS_INCR;
   }
   
@@ -361,12 +357,16 @@ void wireless_tele(){
   
   if(micros() > next_realtime_tele_micros){
     
-    char data_string[100] = {0};
-    // ACCX,ACCY,ACCZ|GYRX,GYRY,GYRZ|A1|engineSpeed(RPM)|engineLoad(%)|throttle(%)|intakeTemp(C)|coolantTemp(C)|currentTime(ms)|
-    sprintf(data_string,"%d,%d,%d|%d,%d,%d|%d|%d,%d|%d,%d|%d,%d|%d|%d|%d|\n",
-    tele_data_int[0],tele_data_int[1],tele_data_int[2],tele_data_int[3],tele_data_int[4],tele_data_int[5],tele_data_int[6],
-    tele_data_2Bytes[0][0],tele_data_2Bytes[0][1],tele_data_2Bytes[1][0],tele_data_2Bytes[1][1],tele_data_2Bytes[2][0],tele_data_2Bytes[2][1],
-    tele_data_int[7],tele_data_int[8],millis());
+    char data_string[150] = {0};
+    // ACCX,ACCY,ACCZ|GYRX,GYRY,GYRZ|A1|
+    // engineSpeed(RPM)|engineLoad(%)|throttle(%)|
+    // intakeTemp(C)|coolantTemp(C)|
+    // lambda1|manifold_pressure(kPa)|fan1(bool)|
+    sprintf(data_string,"%d,%d,%d|%d,%d,%d|%d|%d,%d|%d,%d|%d,%d|%d|%d|%d|%d,%d|%d|\n",
+    tele_data_1B[0],tele_data_1B[1],tele_data_1B[2],tele_data_1B[3],tele_data_1B[4],tele_data_1B[5],tele_data_1B[6],
+    tele_data_2B[0][0],tele_data_2B[0][1],tele_data_2B[1][0],tele_data_2B[1][1],tele_data_2B[2][0],tele_data_2B[2][1],
+    tele_data_1B[7],tele_data_1B[8],
+    tele_data_1B[9],tele_data_2B[3][0],tele_data_2B[3][1],tele_data_fan1);
     Serial1.print(data_string);
     
     next_realtime_tele_micros = micros() + REALTIME_TELE_MICROS_INCR;
