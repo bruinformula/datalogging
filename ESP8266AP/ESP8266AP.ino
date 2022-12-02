@@ -9,8 +9,8 @@
 ESP8266WebServer server(80);
 
 // Replace with your network credentials
-const char* ssid     = "ESP-AP-SH-FSAE";
-const char* password = "11223344";
+const char* ssid     = "Mk8 Telemetry";
+const char* password = "bruinformula";
 
 char caracter = '0';
 String texto = "";
