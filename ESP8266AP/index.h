@@ -1,5 +1,4 @@
 const char MAIN_page[] PROGMEM = R"=====(
-
 <!DOCTYPE html>
   <html>
     <style>
@@ -150,7 +149,7 @@ const char MAIN_page[] PROGMEM = R"=====(
               // test code:           true
               const rawDataStr = this.responseText;
               // actual code:         this.responseText
-              // test code:           "10,20,30|40,50,60|500|3000|70|80|25|30|20|"
+              // test code:           "10,20,30|40,50,60|500|23,124|42,70|16,80|25|30|20|"
               // current data receiving w/ format:
                 // ACCX,ACCY,ACCZ|GYRX,GYRY,GYRZ|A1|engineSpeed(RPM)|engineLoad(%)|throttle(%)|intakeTemp(C)|coolantTemp(C)|currentTime(ms)|
               document.getElementById("rawDataStr").innerHTML = rawDataStr;
@@ -189,7 +188,12 @@ const char MAIN_page[] PROGMEM = R"=====(
               singleDataStr = "";
             }
           }
-          dataValues[2][0] = ((parseInt(dataValues[2][0]) * 3.3 / 1024 * 5 / 3.2 - 1.25)/0.005).toFixed(0).toString();
+
+          // data conversions
+          dataValues[2] = ((parseInt(dataValues[2]) * 3.3 / 1024 * 5 / 3.2 - 1.25)/0.005).toFixed(0).toString();
+          dataValues[3] = ((parseInt(dataValues[3][0])*256+parseInt(dataValues[3][1])) * 0.39063).toFixed(0).toString();
+          dataValues[4] = ((parseInt(dataValues[4][0])*256+parseInt(dataValues[4][1])) * 0.00261230481157781).toFixed(2).toString();
+          dataValues[5] = ((parseInt(dataValues[5][0])*256+parseInt(dataValues[5][1])) * 0.0015259).toFixed(2).toString();
           
           for(var i=2;i<n0;i++){
             var element = document.getElementById("data"+i.toString());
