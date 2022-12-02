@@ -1,10 +1,12 @@
 const char MAIN_page[] PROGMEM = R"=====(
+
 <!DOCTYPE html>
   <html>
     <style>
       body{
         background-color: #FAFAFA;
       }
+      
       table, th, td{
         border:1px solid black;
       }
@@ -73,11 +75,11 @@ const char MAIN_page[] PROGMEM = R"=====(
           </tr>
           <tr style="text-align:right">
             <!-- data values -->
-            <td><span id="data20">0</span></td>
-            <td><span id="data30">0</span></td>
-            <td><span id="data50">0</span></td>
-            <td><span id="data60">0</span></td>
-            <td><span id="data70">0</span></td>
+            <td><span id="data2">0</span></td>
+            <td><span id="data3">0</span></td>
+            <td><span id="data5">0</span></td>
+            <td><span id="data6">0</span></td>
+            <td><span id="data7">0</span></td>
           </tr>
           <tr>
             <!-- data visulize -->
@@ -119,16 +121,16 @@ const char MAIN_page[] PROGMEM = R"=====(
         <br />
         <table width="100%">
         <tr>
-        <th colspan="3">GYR</th>
         <th colspan="3">ACC</th>
+        <th colspan="3">GYR</th>
         </tr>
         <tr>
-            <td>a</td>
-            <td>a</td>
-            <td>a</td>
-            <td>a</td>
-            <td>a</td>
-            <td>a</td>
+            <td style="text-align:right"><span id="ACC0">0</span></td>
+            <td style="text-align:right"><span id="ACC1">0</span></td>
+            <td style="text-align:right"><span id="ACC2">0</span></td>
+            <td style="text-align:right"><span id="GYR0">0</span></td>
+            <td style="text-align:right"><span id="GYR1">0</span></td>
+            <td style="text-align:right"><span id="GYR2">0</span></td>
         </tr>
         </table>
         
@@ -143,10 +145,10 @@ const char MAIN_page[] PROGMEM = R"=====(
         function getData() {
           var xhttp = new XMLHttpRequest();
           xhttp.onreadystatechange = function() {
-            if (true) {
+            if (this.readyState == 4 && this.status == 200) {
               // actual code:         this.readyState == 4 && this.status == 200
               // test code:           true
-              const rawDataStr = "10,20,30|40,50,60|1000|3000|70|80|25|30|20|";
+              const rawDataStr = this.responseText;
               // actual code:         this.responseText
               // test code:           "10,20,30|40,50,60|500|3000|70|80|25|30|20|"
               // current data receiving w/ format:
@@ -189,14 +191,22 @@ const char MAIN_page[] PROGMEM = R"=====(
           }
           dataValues[2][0] = ((parseInt(dataValues[2][0]) * 3.3 / 1024 * 5 / 3.2 - 1.25)/0.005).toFixed(0).toString();
           
-          for(var i=0;i<n0;i++){
-            for(var j=0;j<dataValues[i].length;j++){
-              var element = document.getElementById("data"+i.toString()+j.toString());
-              if(element){
-                element.innerHTML = dataValues[i][j];
-              }
+          for(var i=2;i<n0;i++){
+            var element = document.getElementById("data"+i.toString());
+            if(element){
+              element.innerHTML = dataValues[i];
             }
-            
+          }
+          
+          for(var i=0;i<3;i++){
+            var eACC = document.getElementById("ACC"+i.toString());
+            var eGYR = document.getElementById("GYR"+i.toString());
+            if(eACC){
+              eACC.innerHTML = dataValues[0][i];
+            }
+            if(eGYR){
+              eGYR.innerHTML = dataValues[1][i];
+            }
           }
           
           //engine RPM max: 13,000
