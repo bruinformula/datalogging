@@ -8,11 +8,12 @@ const char MAIN_page[] PROGMEM = R"=====(
       
       table, th, td{
         border:1px solid black;
+        border-color:white;
       }
       .card{
         max-width: 960px;
         min-height: 540px;
-        background: #0080ff;
+        background: black;
         padding: 30px;
         box-sizing: border-box;
         color: #FFF;
@@ -20,7 +21,7 @@ const char MAIN_page[] PROGMEM = R"=====(
         box-shadow: 0px 2px 18px -4px rgba(0,0,0,0.75);
       }
       .barcontainerV{
-        background-color: #181818;
+        background-color: darkslategray;
         position: relative;
         width: 50px;
         height: 320px;
@@ -28,7 +29,7 @@ const char MAIN_page[] PROGMEM = R"=====(
         margin-top: 4px;
       }
       .barV{
-        background-color: #17ff59;
+        background-color: whitesmoke;
         position: absolute;
         bottom: 0;
         width: 100%;
