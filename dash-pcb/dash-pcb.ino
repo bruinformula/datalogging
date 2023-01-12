@@ -121,10 +121,12 @@ void prep_3463(){
   uint8_t result_byte;
   
   Serial.println("Attempting communication with ACC_MAG");
-  
+
+  //This register is the id of the device, which should always be 0xC7
   acc_mag.read(ACC_MAG_WHOAMI_REG, &result_byte, false);
   
   if(result_byte != 0xC7){
+    //wrong or no id, print error
     Serial.print("ERROR: accel mag wrong who_am_i, reported 0x");
     Serial.println(result_byte, HEX);
     log_file.print("ERR,am whoami,");
@@ -135,7 +137,7 @@ void prep_3463(){
   }
   
   Serial.println("Attempting communication with GYR");
-  
+  //This register is the id of the device, which should always be 0b11010111
   acc_mag.read(GYR_WHOAMI_REG, &result_byte, false);
   
   if(result_byte != 0b11010111){
@@ -147,27 +149,31 @@ void prep_3463(){
     Serial.println("GYR sensor found");
     log_file.println("MSG,gyr found");
   }
-  
+
+  //byte to be written to device
   uint8_t msg;
   
-  //accelerometer in +/- 4g max mode
+  //set accelerometer range to +/- 4g
+  //see datasheet for explanation of registers
   msg = 0b00000001;
   acc_mag.write(ACC_MAG_XYZ_DATA_CFG_REG, msg, false);
-  //accelerometer in active mode, max data rate
+  //set accelerometer to active mode, max data rate
   msg = 0b00000001;
   acc_mag.write(ACC_MAG_CTRL_REG_1, msg, false);
   
-  // +/- 250dps
+  //set gyro range to +/- 250dps
   msg = 0b00000011;
   gyr.write(GYR_CTRL_REG0, msg, false);
   
-  //800Hz, active
+  //set to 800Hz, active
   msg = 0b00000011;
   gyr.write(GYR_CTRL_REG1, msg, false);
 }
 
+//Initialize the SD card and make a new folder
 void prep_SD(){
-  
+
+  //Initialize the SD card reader built into the Teensy
   Serial.println("Initializing SD card...");
   if(SD.begin(BUILTIN_SDCARD)){
     Serial.println("SD card initialization complete.");
@@ -289,6 +295,7 @@ void read_3463(){
   
 }
 
+//Check all CAN messages, log them, and send some to telemetry
 void read_CAN(){
 
   while ( can1.read(msg) ) {
@@ -326,6 +333,7 @@ void read_CAN(){
   }
 }
 
+//Read pin A1, connected to EGT, log it, and prepare it to be sent with telemetry
 void read_A1(){
   
   if(micros() > next_analog_read_micros){
