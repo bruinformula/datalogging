@@ -1,4 +1,5 @@
 const char MAIN_page[] PROGMEM = R"=====(
+
 <!DOCTYPE html>
 <html>
   <style>
@@ -67,11 +68,11 @@ const char MAIN_page[] PROGMEM = R"=====(
         <!-- data table -->
         <tr>
           <!-- data titles -->
-          <th style="width:10%">Exhaust Temperature (C)</th>
+          <th style="width:10%">Exhaust Temperature (F)</th>
           <th style="width:10%">Engine (RPM)</th>
           <th style="width:10%">Throttle (%)</th>
-          <th style="width:10%">Intake Temperature (C)</th>
-          <th style="width:10%">Coolant Temperature (C)</th>
+          <th style="width:10%">Intake Temperature (F)</th>
+          <th style="width:10%">Coolant Temperature (F)</th>
         </tr>
         <tr style="text-align:right">
           <!-- data values -->
@@ -116,12 +117,8 @@ const char MAIN_page[] PROGMEM = R"=====(
       <br/>
       <table width="100%">
         <tr>
-          <th colspan="3"> Accelerometer </th>
+          <th colspan="3" style="width:50%"> Accelerometer </th>
           <th colspan="3"> Gyroscope </th>
-          <th>Engine Load (%)</th>
-          <th>Lambda</th>
-          <th>Manifold Pressure (kPa)</th>
-          <th>Cooling Fan Status</th>
         </tr>
         <tr style="text-align:right">
           <td><span id="ACC0">0</span></td>
@@ -130,12 +127,23 @@ const char MAIN_page[] PROGMEM = R"=====(
           <td><span id="GYR0">0</span></td>
           <td><span id="GYR1">0</span></td>
           <td><span id="GYR2">0</span></td>
+        </tr>
+      </table>
+      <table width="100%">
+        <tr>
+          <th>Engine Load (%)</th>
+          <th>Lambda</th>
+          <th>Manifold Pressure (kPa)</th>
+          <th style="width:15%">Cooling Fan Status</th>
+        </tr>
+        <tr style="text-align:right">
           <td><span id="data4">0</span></td>
           <td><span id="data8">0</span></td>
           <td><span id="data9">0</span></td>
           <td style="text-align:center" id="fanCell"><span id="data10">0</span></td>
         </tr>
       </table>
+      
 
     </div>
     <script>
@@ -145,6 +153,7 @@ const char MAIN_page[] PROGMEM = R"=====(
       // Call this function repetatively with time interval in ms
       setInterval(function() { getData(); }, 1000/refreshRate_Hz);
       // get data from ESP
+      
       function getData() {
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange = function() {
@@ -197,10 +206,11 @@ const char MAIN_page[] PROGMEM = R"=====(
         }
 
         // data conversions
-        dataValues[2] = ((parseInt(dataValues[2]) * 3.3 / 1024 * 5 / 3.2 - 1.25)/0.005).toFixed(0).toString();
+        dataValues[2] = ((((parseInt(dataValues[2]) * 3.3 / 1024 * 5 / 3.2 - 1.25)/0.005))).toFixed(0).toString();
         dataValues[3] = ((parseInt(dataValues[3][0])*256+parseInt(dataValues[3][1])) * 0.39063).toFixed(0).toString();
         dataValues[4] = ((parseInt(dataValues[4][0])*256+parseInt(dataValues[4][1])) * 0.00261230481157781).toFixed(2).toString();
         dataValues[5] = ((parseInt(dataValues[5][0])*256+parseInt(dataValues[5][1])) * 0.0015259).toFixed(2).toString();
+        dataValues[8] = (parseInt(dataValues[2]) * 10).toFixed(0).toString();
         dataValues[9] = ((parseInt(dataValues[9][0])*256+parseInt(dataValues[9][1])) * 0.1).toFixed(0).toString();
         dataValues[10] = ((parseInt(dataValues[10])!=0)?"On":"Off");
 
@@ -226,6 +236,23 @@ const char MAIN_page[] PROGMEM = R"=====(
         var enginePercent = (parseFloat(dataValues[3])/13000*100).toString();
         //throttle visulize
         document.getElementById("barEngRPM").style.height = enginePercent+"%";
+        
+        var throttlePercent = (parseFloat(dataValues[5])).toString();
+        document.getElementById("barThro").style.height = throttlePercent+"%";
+        
+        
+        var exhaustTempPercent = ((parseFloat(dataValues[2])+40)/1040*100).toString();
+        var intakeTempPercent = ((parseFloat(dataValues[6])+40)/300*100).toString();
+        var coolantTempPercent = ((parseFloat(dataValues[7])+40)/300*100).toString();
+        document.getElementById("barExTemp").style.height = exhaustTempPercent+"%";
+        document.getElementById("barInTemp").style.height = intakeTempPercent+"%";
+        document.getElementById("barCoTemp").style.height = coolantTempPercent+"%";
+        //exhaust: -40 to 1000F
+        // other: -40 to 260F
+        
+        
+        
+        
 
         if(dataValues[10]=="On"){
          document.getElementById("fanCell").style.backgroundColor = "rgb(0,255,0)";
