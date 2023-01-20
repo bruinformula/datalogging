@@ -2,6 +2,12 @@ const char MAIN_page[] PROGMEM = R"=====(
 
 <!DOCTYPE html>
 <html>
+  <head>
+    <title>
+        Bruin Formula SAE Vehicle Data
+    </title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+  </head>
   <style>
       body{
         background-color: #FAFAFA;
@@ -63,7 +69,8 @@ const char MAIN_page[] PROGMEM = R"=====(
     <div class="card">
       <!-- text displayed in the card -->
       <h4>Update web page without refresh</h4>
-      <h4 id="rawDataStr">raw data string</h4>
+      <h4>Log File Name: <span id="data11">0</span></h4>
+      <!-- <h4 id="rawDataStr">raw data string</h4> -->
       <table>
         <!-- data table -->
         <tr>
@@ -162,13 +169,14 @@ const char MAIN_page[] PROGMEM = R"=====(
             // test code:           true
             const rawDataStr = this.responseText;
             // actual code:         this.responseText
-            // test code:           "10,20,30|40,50,60|500|23,124|42,70|16,80|25|30|35|4,123|0|"
+            // test code:           "10,20,30|40,50,60|500|23,124|42,70|16,80|25|30|35|4,123|0|logFileName.csv|"
             // current data receiving:
             // ACCX,ACCY,ACCZ|GYRX,GYRY,GYRZ|exTemp(C)|
             // engineSpeed(RPM)|engineLoad(%)|throttle(%)|
             // intakeTemp(C)|coolantTemp(C)|
             // lambda1|manifold_pressure(kPa)|fan1(bool)|
-            document.getElementById("rawDataStr").innerHTML = rawDataStr;
+            // logFileName|
+            //document.getElementById("rawDataStr").innerHTML = rawDataStr;
             processData(rawDataStr);
             window.AppInventor.setWebViewString("" + this.responseText);  // RESPUESTA A CadenaDeWebView
           }
