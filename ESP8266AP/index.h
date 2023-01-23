@@ -16,22 +16,28 @@ const char MAIN_page[] PROGMEM = R"=====(
       table, th, td{
         border:1px solid black;
         border-color:white;
+    border-collapse: collapse;
+    padding: 2px;
       }
       .card{
-        max-width: 960px;
-        min-height: 540px;
+        max-width: 600px;
+        min-height: 520px;
         background: black;
-        padding: 30px;
+        padding: 20px;
         box-sizing: border-box;
-        color: #FFF;
-        margin:20px;
+        color: #FAFAFA;
+    font-size: 12px;
+    font-family: "Verdana";
+        margin: 10px auto;
         box-shadow: 0px 2px 18px -4px rgba(0,0,0,0.75);
+    text-align: center;
       }
       .barcontainerV{
         background-color: darkslategray;
         position: relative;
-        width: 50px;
-        height: 320px;
+        width: 50%;
+    max-width: 50px;
+        height: 280px;
         display: inline-block;
         margin-top: 4px;
       }
@@ -68,18 +74,19 @@ const char MAIN_page[] PROGMEM = R"=====(
   <body>
     <div class="card">
       <!-- text displayed in the card -->
-      <h4>Update web page without refresh</h4>
-      <h4>Log File Name: <span id="data11">0</span></h4>
+      <h4>Bruin Formula Mk. 8 Telemetry</h4>
+      <p>Log File Name: <span id="data11">No data received yet</span></p>
+    <br>
       <!-- <h4 id="rawDataStr">raw data string</h4> -->
       <table>
         <!-- data table -->
         <tr>
           <!-- data titles -->
-          <th style="width:10%">Exhaust Temperature (F)</th>
+          <th style="width:10%">Exhaust Temp (C)</th>
           <th style="width:10%">Engine (RPM)</th>
           <th style="width:10%">Throttle (%)</th>
-          <th style="width:10%">Intake Temperature (F)</th>
-          <th style="width:10%">Coolant Temperature (F)</th>
+          <th style="width:10%">Intake Temp (C)</th>
+          <th style="width:10%">Coolant Temp (C)</th>
         </tr>
         <tr style="text-align:right">
           <!-- data values -->
@@ -121,7 +128,22 @@ const char MAIN_page[] PROGMEM = R"=====(
       </table>
 
       <!--table for extra data w/o visulization-->
-      <br/>
+      <br><br>
+      <table width="100%">
+        <tr>
+          <th>Engine Load (%)</th>
+          <th>Lambda</th>
+          <th>Manifold Pressure (kPa)</th>
+          <th style="width:15%">Cooling Fan Status</th>
+        </tr>
+        <tr style="text-align:left">
+          <td><span id="data4">0</span></td>
+          <td><span id="data8">0</span></td>
+          <td><span id="data9">0</span></td>
+          <td style="text-align:center" id="fanCell"><span id="data10">0</span></td>
+        </tr>
+      </table>
+    <br><br>
       <table width="100%">
         <tr>
           <th colspan="3" style="width:50%"> Accelerometer </th>
@@ -134,20 +156,6 @@ const char MAIN_page[] PROGMEM = R"=====(
           <td><span id="GYR0">0</span></td>
           <td><span id="GYR1">0</span></td>
           <td><span id="GYR2">0</span></td>
-        </tr>
-      </table>
-      <table width="100%">
-        <tr>
-          <th>Engine Load (%)</th>
-          <th>Lambda</th>
-          <th>Manifold Pressure (kPa)</th>
-          <th style="width:15%">Cooling Fan Status</th>
-        </tr>
-        <tr style="text-align:right">
-          <td><span id="data4">0</span></td>
-          <td><span id="data8">0</span></td>
-          <td><span id="data9">0</span></td>
-          <td style="text-align:center" id="fanCell"><span id="data10">0</span></td>
         </tr>
       </table>
       
@@ -213,13 +221,20 @@ const char MAIN_page[] PROGMEM = R"=====(
           }
         }
 
-        // data conversions
+    //Data conversions
+    //EGT (see adafruit 1178 datasheet)
         dataValues[2] = ((((parseInt(dataValues[2]) * 3.3 / 1024 * 5 / 3.2 - 1.25)/0.005))).toFixed(0).toString();
+    //RPM
         dataValues[3] = ((parseInt(dataValues[3][0])*256+parseInt(dataValues[3][1])) * 0.39063).toFixed(0).toString();
+    //Engine Load %
         dataValues[4] = ((parseInt(dataValues[4][0])*256+parseInt(dataValues[4][1])) * 0.00261230481157781).toFixed(2).toString();
+    //Throttle
         dataValues[5] = ((parseInt(dataValues[5][0])*256+parseInt(dataValues[5][1])) * 0.0015259).toFixed(2).toString();
+    //IAT
         dataValues[8] = (parseInt(dataValues[2]) * 10).toFixed(0).toString();
+    //CLT
         dataValues[9] = ((parseInt(dataValues[9][0])*256+parseInt(dataValues[9][1])) * 0.1).toFixed(0).toString();
+    //Fan on/off
         dataValues[10] = ((parseInt(dataValues[10])!=0)?"On":"Off");
 
         for(var i=2;i<n0;i++){
