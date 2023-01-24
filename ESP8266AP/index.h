@@ -13,14 +13,16 @@ const char MAIN_page[] PROGMEM = R"=====(
         background-color: #FAFAFA;
       }
       
-      table, th, td{
+      .card > table, th, td{
         border:1px solid black;
         border-color:white;
     border-collapse: collapse;
     padding: 2px;
+    background-color: #121212;
+    color: #FFF;
       }
       .card{
-        max-width: 600px;
+        max-width: 400px;
         min-height: 520px;
         background: black;
         padding: 20px;
@@ -37,7 +39,7 @@ const char MAIN_page[] PROGMEM = R"=====(
         position: relative;
         width: 50%;
     max-width: 50px;
-        height: 280px;
+        height: 150px;
         display: inline-block;
         margin-top: 4px;
       }
@@ -70,6 +72,34 @@ const char MAIN_page[] PROGMEM = R"=====(
         display: inline-block;
         text-align: center;
       }
+    #barLambdaBlue, #barTargetLambdaYellow{
+    margin-top: 50%;
+    height: 0%;
+    background-color: #05F;
+      position: absolute;
+      bottom: 50%;
+      left: -0px;
+    }
+    #barLambdaYellow, #barTargetLambdaYellow{
+      height: 0%;
+      background-color: #BA0;
+      position: absolute;
+      top: 50%;
+      left: -0px;
+    }
+    #lambdaTable, #lambdaTable tbody, #targetLambdaTable, #targetLambdaTable tbody{
+      height: 100%;
+      width: 100%;
+      border: 0px solid black;
+      padding: 0px;
+      margin: 0px;
+    }
+    #lambdaTable tr, #lambdaTable td, #targetLambdaTable tr, #targetLambdaTable td{
+      border: 0px solid black;
+      padding: 0px;
+      margin: 0px;
+      background-color: darkslategray;
+    }
     </style>
   <body>
     <div class="card">
@@ -82,25 +112,36 @@ const char MAIN_page[] PROGMEM = R"=====(
         <!-- data table -->
         <tr>
           <!-- data titles -->
-          <th style="width:10%">Exhaust Temp (C)</th>
-          <th style="width:10%">Engine (RPM)</th>
+          <th style="width:10%">Lambda</th>
+          <th style="width:10%">Target Lambda</th>
+          <th style="width:10%">Engine Speed (RPM)</th>
           <th style="width:10%">Throttle (%)</th>
-          <th style="width:10%">Intake Temp (C)</th>
-          <th style="width:10%">Coolant Temp (C)</th>
+          <th style="width:10%">Manifold Pressure (kPa)</th>
         </tr>
         <tr style="text-align:right">
           <!-- data values -->
-          <td><span id="data2">0</span></td>
+          <td><span id="data8">0</span></td>
+          <td><span id="data12">0</span></td>
           <td><span id="data3">0</span></td>
           <td><span id="data5">0</span></td>
-          <td><span id="data6">0</span></td>
-          <td><span id="data7">0</span></td>
+          <td><span id="data9">0</span></td>
         </tr>
         <tr style="text-align:center">
           <!-- data visulize -->
           <td>
             <div class="barcontainerV">
-              <div class="barV" id="barExTemp"></div>
+        <table id="lambdaTable">
+          <tr><td><div class="barV" id="barLambdaBlue"></div></td></tr>
+          <tr><td><div class="barV" id="barLambdaYellow"></div></td></tr>
+        </table>
+            </div>
+          </td>
+          <td>
+            <div class="barcontainerV">
+        <table id="targetLambdaTable">
+          <tr><td><div class="barV" id="barTargetLambdaBlue"></div></td></tr>
+          <tr><td><div class="barV" id="barTargetLambdaYellow"></div></td></tr>
+        </table>
             </div>
           </td>
           <td>
@@ -116,6 +157,45 @@ const char MAIN_page[] PROGMEM = R"=====(
           </td>
           <td>
             <div class="barcontainerV">
+              <div class="barV" id="barMAP"></div>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <!-- data titles -->
+          <th style="width:10%">Injector Duty (%)</th>
+          <th style="width:10%">Exhaust Temp (C)</th>
+          <th style="width:10%">Engine Load (%)</th>
+          <th style="width:10%">Intake Temp (C)</th>
+          <th style="width:10%">Coolant Temp (C)</th>
+        </tr>
+        <tr style="text-align:right">
+          <!-- data values -->
+          <td><span id="data14">0</span></td>
+          <td><span id="data2">0</span></td>
+          <td><span id="data4">0</span></td>
+          <td><span id="data6">0</span></td>
+          <td><span id="data7">0</span></td>
+        </tr>
+        <tr style="text-align:center">
+          <!-- data visulize -->
+          <td>
+            <div class="barcontainerV">
+              <div class="barV" id="barInjDuty"></div>
+            </div>
+          </td>
+          <td>
+            <div class="barcontainerV">
+              <div class="barV" id="barExTemp"></div>
+            </div>
+          </td>
+          <td>
+            <div class="barcontainerV">
+              <div class="barV" id="barEngLoad"></div>
+            </div>
+          </td>
+          <td>
+            <div class="barcontainerV">
               <div class="barV" id="barInTemp"></div>
             </div>
           </td>
@@ -127,23 +207,20 @@ const char MAIN_page[] PROGMEM = R"=====(
         </tr>
       </table>
 
-      <!--table for extra data w/o visulization-->
-      <br><br>
-      <table width="100%">
-        <tr>
-          <th>Engine Load (%)</th>
-          <th>Lambda</th>
-          <th>Manifold Pressure (kPa)</th>
-          <th style="width:15%">Cooling Fan Status</th>
-        </tr>
-        <tr style="text-align:left">
-          <td><span id="data4">0</span></td>
-          <td><span id="data8">0</span></td>
-          <td><span id="data9">0</span></td>
-          <td style="text-align:center" id="fanCell"><span id="data10">0</span></td>
-        </tr>
-      </table>
     <br><br>
+    <table>
+      <tr>
+        <td width="60px">Fan</td>
+        <td width="60px" id="data10">No Data</td>
+      </tr>
+      <tr>
+        <td width="60px">Fuel Pump</td>
+        <td width="60px" id="data16">No Data</td>
+      </tr>
+    </table>
+  <br><br>
+  <p>Fuel Pressure (psi): <span id="data17">No Data</span></p>
+  <p>Battery Voltage: <span id="data15">No Data</span></p>
       <table width="100%">
         <tr>
           <th colspan="3" style="width:50%"> Accelerometer </th>
@@ -177,7 +254,9 @@ const char MAIN_page[] PROGMEM = R"=====(
             // test code:           true
             const rawDataStr = this.responseText;
             // actual code:         this.responseText
-            // test code:           "10,20,30|40,50,60|500|23,124|42,70|16,80|25|30|35|4,123|0|logFileName.csv|"
+            // test code:           "10,20,30|40,50,60|500|23,124|42,70|16,80|25|30|105|4,123|0|logFileName.csv|85|128|128|200,200|1|128|"
+      // 0: ACC, 1: GYR, 2: EGT, 3: ENGSPD, 4: ENGLD, 5: TPS, 
+      // 6: IAT, 7: CLT, 8: O2, 9: MAP, 10: FAN, 11: LOGNAME, 12: TO2, 13: DBTDC, 14: INJDUTY, 15: VBAT, 16: FPUMP, 17: FPR
             // current data receiving:
             // ACCX,ACCY,ACCZ|GYRX,GYRY,GYRZ|exTemp(C)|
             // engineSpeed(RPM)|engineLoad(%)|throttle(%)|
@@ -193,7 +272,7 @@ const char MAIN_page[] PROGMEM = R"=====(
         xhttp.send();
       }
       function processData(allDataStr) {
-        const dataValues = [];
+        dataValues = [];
         var n0 = 0;
         var singleDataStr = "";
         for(var i = 0;i < allDataStr.length;i++) {
@@ -230,13 +309,25 @@ const char MAIN_page[] PROGMEM = R"=====(
         dataValues[4] = ((parseInt(dataValues[4][0])*256+parseInt(dataValues[4][1])) * 0.00261230481157781).toFixed(2).toString();
     //Throttle
         dataValues[5] = ((parseInt(dataValues[5][0])*256+parseInt(dataValues[5][1])) * 0.0015259).toFixed(2).toString();
-    //IAT
-        dataValues[8] = (parseInt(dataValues[2]) * 10).toFixed(0).toString();
-    //CLT
-        dataValues[9] = ((parseInt(dataValues[9][0])*256+parseInt(dataValues[9][1])) * 0.1).toFixed(0).toString();
-    //Fan on/off
+    //Lambda
+        dataValues[8] = (parseInt(dataValues[8]) * 0.00390625 + 0.5).toFixed(2).toString();
+    //MAP
+        dataValues[9] = ((parseInt(dataValues[9][0])*256+parseInt(dataValues[9][1])) * 0.1).toFixed(1).toString();
+    //Fan on/off, string
         dataValues[10] = ((parseInt(dataValues[10])!=0)?"On":"Off");
-
+  //Target Lambda
+    dataValues[12] = (parseInt(dataValues[12]) * 0.00390625 + 0.5).toFixed(2).toString();
+  //DBTDC
+    dataValues[13] = (parseInt(dataValues[13]) * 0.00390625 - 17).toFixed(1).toString();
+  //INJDUTY
+    dataValues[14] = (parseInt(dataValues[14]) * 0.392157).toFixed(1).toString();
+  //VBAT
+    dataValues[15] = ((parseInt(dataValues[15][0])*256+parseInt(dataValues[15][1])) * 0.0002455).toFixed(2).toString();
+    //Pump on/off, string
+        dataValues[16] = ((parseInt(dataValues[16])!=0)?"On":"Off");
+  //Fuel Pressure
+    dataValues[17] = (parseInt(dataValues[14]) * 0.580151).toFixed(1).toString();
+    
         for(var i=2;i<n0;i++){
           var element = document.getElementById("data"+i.toString());
           if(element){
@@ -263,6 +354,12 @@ const char MAIN_page[] PROGMEM = R"=====(
         var throttlePercent = (parseFloat(dataValues[5])).toString();
         document.getElementById("barThro").style.height = throttlePercent+"%";
         
+        var engLoadPercent = (parseFloat(dataValues[5])).toString();
+        document.getElementById("barEngLoad").style.height = engLoadPercent+"%";
+    
+    var injDutyPercent = (parseFloat(dataValues[5])).toString();
+        document.getElementById("barInjDuty").style.height = injDutyPercent+"%";
+        
         
         var exhaustTempPercent = ((parseFloat(dataValues[2])+40)/1040*100).toString();
         var intakeTempPercent = ((parseFloat(dataValues[6])+40)/300*100).toString();
@@ -272,18 +369,36 @@ const char MAIN_page[] PROGMEM = R"=====(
         document.getElementById("barCoTemp").style.height = coolantTempPercent+"%";
         //exhaust: -40 to 1000F
         // other: -40 to 260F
-        
-        
-        
-        
+    
+    var lambdaBluePercent = Math.max(0, dataValues[8]*100 - 100);
+    var lambdaYellowPercent = Math.max(0, 100 - dataValues[8]*100);
+    document.getElementById("barLambdaBlue").style.height = lambdaBluePercent + "%";
+    document.getElementById("barLambdaYellow").style.height = lambdaYellowPercent + "%";
+    
+    var targetLambdaBluePercent = Math.max(0, dataValues[8]*100 - 100);
+    var targetLambdaYellowPercent = Math.max(0, 100 - dataValues[8]*100);
+    document.getElementById("barTargetLambdaBlue").style.height = targetLambdaBluePercent + "%";
+    document.getElementById("barTargetLambdaYellow").style.height = targetLambdaYellowPercent + "%";
+    
+    var MAPPercent = dataValues[9]/120 * 100;
+    document.getElementById("barMAP").style.height = MAPPercent + "%";
 
         if(dataValues[10]=="On"){
-         document.getElementById("fanCell").style.backgroundColor = "rgb(0,255,0)";
+         document.getElementById("data10").style.backgroundColor = "rgb(0,255,0)";
          document.getElementById("data10").style.color = "black";
         }
         else{
-          document.getElementById("fanCell").style.backgroundColor = "rgb(255,0,0)";
+          document.getElementById("data10").style.backgroundColor = "rgb(255,0,0)";
          document.getElementById("data10").style.color = "white";
+        }
+
+        if(dataValues[16]=="On"){
+         document.getElementById("data16").style.backgroundColor = "rgb(0,255,0)";
+         document.getElementById("data16").style.color = "black";
+        }
+        else{
+          document.getElementById("data16").style.backgroundColor = "rgb(255,0,0)";
+         document.getElementById("data16").style.color = "white";
         }
 
 
@@ -291,4 +406,5 @@ const char MAIN_page[] PROGMEM = R"=====(
     </script>
   </body>
 </html>
+
 )=====";

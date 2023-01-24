@@ -15,7 +15,6 @@
 
 #define LOG_DATA_TO_SERIAL
 
-
 // The I2C device. Determines which pins we use on the Teensy.
 I2CMaster& master = Master;
 
@@ -35,9 +34,10 @@ const uint8_t GYR_WHOAMI_REG =  0x0C;
 const uint8_t GYR_CTRL_REG0 = 0x0D;
 const uint8_t GYR_CTRL_REG1 = 0x13;
 
-int tele_data_1B[10]; // intList: ACCX, ACCY, ACCZ, GYRX, GYRY, GYRZ, exTemp(C), intakeTemp(C), coolantTemp(C), lambda1
-int tele_data_2B[4][2]; // list for 2-byte data: engineSpeed(RPM), engineLoad(%), throttle(%), MAP(kPa)
+int tele_data_1B[14]; // intList: ACCX, ACCY, ACCZ, GYRX, GYRY, GYRZ, exTemp(C), intakeTemp(C), coolantTemp(C), lambda1, dbtdc, fpr, to2
+int tele_data_2B[4][2]; // list for 2-byte data: engineSpeed(RPM), engineLoad(%), throttle(%), MAP(kPa), V_BAT
 bool tele_data_fan1; // fan 1 status
+bool tele_data_fpump; // fuel pump status
 // changed all to int, send only buffer values; further conversion done by html code
 
 #define LOG_VERSION 3
@@ -306,9 +306,13 @@ void read_CAN(){
     sprintf(data_string,"%i,%08lX,%02X%02X%02X%02X%02X%02X%02X%02X",
     msg.flags.extended,msg.id,msg.buf[0],msg.buf[1],msg.buf[2],
     msg.buf[3],msg.buf[4],msg.buf[5],msg.buf[6],msg.buf[7]);
+    
+    //log that with CAN message name and timestamp attached
+    log_pair("CAN",data_string);
+    //Serial1.println(data_string);
 
+    //update values to be sent over serial for certain messages
     if(msg.id == 0x01F0A000){
-      // 01F0A000: EngSpd,EngLoad,Thro,inTemp,coTemp
       /* 
         msg.buf[0:5]: 0-255 (uint8_t)
         tele: need to convert to actual data
@@ -321,15 +325,19 @@ void read_CAN(){
     }
     else if(msg.id == 0x01F0A003){
       tele_data_1B[9] = msg.buf[0];// lambda1
+      tele_data_1B[10] = msg.buf[5]; //DBTDC
+      tele_data_2B[4][0] = msg.buf[6]; tele_data_2B[3][1] = msg.buf[7]; //vbat
     }
     else if(msg.id == 0x01F0A004){
       tele_data_2B[3][0] = msg.buf[0]; tele_data_2B[3][1] = msg.buf[1]; // MAP
-      tele_data_fan1 = (msg.buf[6] & 0b00000010);
+      tele_data_fan1 = (msg.buf[6] & 0b00000010); //fan
+      tele_data_fpump = (msg.buf[6] & 0b00000001); //fuel pump
+      tele_data_1B[11] = msg.buf[3]; //fpr
+      tele_data_1B[12] = msg.buf[5]; //to2
     }
-    
-    //log that with CAN message name and timestamp attached
-    log_pair("CAN",data_string);
-    //Serial1.println(data_string);
+    else if(msg.id == 0x01F0A006){
+      tele_data_1B[13] = msg.buf[2]; //injduty
+    }
   }
 }
 
@@ -371,11 +379,14 @@ void wireless_tele(){
     // intakeTemp(C)|coolantTemp(C)|
     // lambda1|manifold_pressure(kPa)|fan1(bool)|
     // logFileName|
-    sprintf(data_string,"%d,%d,%d|%d,%d,%d|%d|%d,%d|%d,%d|%d,%d|%d|%d|%d|%d,%d|%d|%s|\n",
+     // 0: ACC, 1: GYR, 2: EGT, 3: ENGSPD, 4: ENGLD, 5: TPS, 
+      // 6: IAT, 7: CLT, 8: O2, 9: MAP, 10: FAN, 11: LOGNAME, 12: TO2, 13: DBTDC, 14: INJDUTY, 15: VBAT, 16: FPUMP, 17: FPR
+    sprintf(data_string,"%d,%d,%d|%d,%d,%d|%d|%d,%d|%d,%d|%d,%d|%d|%d|%d|%d,%d|%d|%s|%d|%d|%d|%d,%d|%d|\n",
     tele_data_1B[0],tele_data_1B[1],tele_data_1B[2],tele_data_1B[3],tele_data_1B[4],tele_data_1B[5],tele_data_1B[6],
     tele_data_2B[0][0],tele_data_2B[0][1],tele_data_2B[1][0],tele_data_2B[1][1],tele_data_2B[2][0],tele_data_2B[2][1],
     tele_data_1B[7],tele_data_1B[8],
-    tele_data_1B[9],tele_data_2B[3][0],tele_data_2B[3][1],tele_data_fan1,log_name);
+    tele_data_1B[9],tele_data_2B[3][0],tele_data_2B[3][1],tele_data_fan1,log_name, tele_data_1B[12], tele_data_1B[10], 
+    tele_data_1B[13], tele_data_2B[4][0], tele_data_2B[4][1], tele_data_fpump, tele_data_1B[11]);
     Serial1.print(data_string);
     
     next_realtime_tele_micros = micros() + REALTIME_TELE_MICROS_INCR;
