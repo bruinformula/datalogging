@@ -72,7 +72,7 @@ const char MAIN_page[] PROGMEM = R"=====(
         display: inline-block;
         text-align: center;
       }
-    #barLambdaBlue, #barTargetLambdaYellow{
+    #barLambdaBlue, #barTargetLambdaBlue{
     margin-top: 50%;
     height: 0%;
     background-color: #05F;
@@ -130,18 +130,22 @@ const char MAIN_page[] PROGMEM = R"=====(
           <!-- data visulize -->
           <td>
             <div class="barcontainerV">
-        <table id="lambdaTable">
+              <div class="barV" id="barLambda"></div>
+<!--        <table id="lambdaTable">
           <tr><td><div class="barV" id="barLambdaBlue"></div></td></tr>
           <tr><td><div class="barV" id="barLambdaYellow"></div></td></tr>
         </table>
+        -->
             </div>
           </td>
           <td>
             <div class="barcontainerV">
-        <table id="targetLambdaTable">
+              <div class="barV" id="barTargetLambda"></div>
+<!--        <table id="targetLambdaTable">
           <tr><td><div class="barV" id="barTargetLambdaBlue"></div></td></tr>
           <tr><td><div class="barV" id="barTargetLambdaYellow"></div></td></tr>
         </table>
+        -->
             </div>
           </td>
           <td>
@@ -254,7 +258,7 @@ const char MAIN_page[] PROGMEM = R"=====(
             // test code:           true
             const rawDataStr = this.responseText;
             // actual code:         this.responseText
-            // test code:           "10,20,30|40,50,60|500|23,124|42,70|16,80|25|30|105|4,123|0|logFileName.csv|85|128|128|200,200|1|128|"
+            // test code:           "10,20,30|40,50,60|500|23,124|42,70|16,80|25|30|230|4,123|0|logFileName.csv|85|128|128|200,200|1|128|"
       // 0: ACC, 1: GYR, 2: EGT, 3: ENGSPD, 4: ENGLD, 5: TPS, 
       // 6: IAT, 7: CLT, 8: O2, 9: MAP, 10: FAN, 11: LOGNAME, 12: TO2, 13: DBTDC, 14: INJDUTY, 15: VBAT, 16: FPUMP, 17: FPR
             // current data receiving:
@@ -326,7 +330,7 @@ const char MAIN_page[] PROGMEM = R"=====(
     //Pump on/off, string
         dataValues[16] = ((parseInt(dataValues[16])!=0)?"On":"Off");
   //Fuel Pressure
-    dataValues[17] = (parseInt(dataValues[14]) * 0.580151).toFixed(1).toString();
+    dataValues[17] = (parseInt(dataValues[17]) * 0.580151).toFixed(1).toString();
     
         for(var i=2;i<n0;i++){
           var element = document.getElementById("data"+i.toString());
@@ -354,10 +358,10 @@ const char MAIN_page[] PROGMEM = R"=====(
         var throttlePercent = (parseFloat(dataValues[5])).toString();
         document.getElementById("barThro").style.height = throttlePercent+"%";
         
-        var engLoadPercent = (parseFloat(dataValues[5])).toString();
+        var engLoadPercent = (parseFloat(dataValues[4])).toString();
         document.getElementById("barEngLoad").style.height = engLoadPercent+"%";
     
-    var injDutyPercent = (parseFloat(dataValues[5])).toString();
+    var injDutyPercent = (parseFloat(dataValues[14])).toString();
         document.getElementById("barInjDuty").style.height = injDutyPercent+"%";
         
         
@@ -369,16 +373,34 @@ const char MAIN_page[] PROGMEM = R"=====(
         document.getElementById("barCoTemp").style.height = coolantTempPercent+"%";
         //exhaust: -40 to 1000F
         // other: -40 to 260F
-    
-    var lambdaBluePercent = Math.max(0, dataValues[8]*100 - 100);
-    var lambdaYellowPercent = Math.max(0, 100 - dataValues[8]*100);
-    document.getElementById("barLambdaBlue").style.height = lambdaBluePercent + "%";
-    document.getElementById("barLambdaYellow").style.height = lambdaYellowPercent + "%";
-    
-    var targetLambdaBluePercent = Math.max(0, dataValues[8]*100 - 100);
-    var targetLambdaYellowPercent = Math.max(0, 100 - dataValues[8]*100);
-    document.getElementById("barTargetLambdaBlue").style.height = targetLambdaBluePercent + "%";
-    document.getElementById("barTargetLambdaYellow").style.height = targetLambdaYellowPercent + "%";
+
+    document.getElementById("barLambda").style.bottom = "50%";
+    var lambdaPercent = dataValues[8]*100 - 100;
+    document.getElementById("barLambda").style.height = (Math.abs(lambdaPercent)).toString() + "%";
+    if(lambdaPercent<0){
+      document.getElementById("barLambda").style.backgroundColor = "#BA0";
+      document.getElementById("barLambda").style.transform = "scaleY(-1)";}
+    else{
+      document.getElementById("barLambda").style.backgroundColor = "#05F";
+      document.getElementById("barLambda").style.transform = "scaleY(1)";}
+    //var lambdaBluePercent = Math.max(0, dataValues[8]*100 - 100);
+    //var lambdaYellowPercent = Math.max(0, 100 - dataValues[8]*100);
+    //document.getElementById("barLambdaBlue").style.height = lambdaBluePercent + "%";
+    //document.getElementById("barLambdaYellow").style.height = lambdaYellowPercent + "%";
+
+    document.getElementById("barTargetLambda").style.bottom = "50%";
+    var lambdaTargetPercent = dataValues[12]*100 - 100;
+    document.getElementById("barTargetLambda").style.height = (Math.abs(lambdaTargetPercent)).toString() + "%";
+    if(lambdaTargetPercent<0){
+      document.getElementById("barTargetLambda").style.backgroundColor = "#BA0";
+      document.getElementById("barTargetLambda").style.transform = "scaleY(-1)";}
+    else{
+      document.getElementById("barTargetLambda").style.backgroundColor = "#05F";
+      document.getElementById("barTargetLambda").style.transform = "scaleY(1)";}
+//    var targetLambdaBluePercent = Math.max(0, dataValues[12]*100 - 100);
+//    var targetLambdaYellowPercent = Math.max(0, 100 - dataValues[12]*100);
+//    document.getElementById("barTargetLambdaBlue").style.height = targetLambdaBluePercent + "%";
+//    document.getElementById("barTargetLambdaYellow").style.height = targetLambdaYellowPercent + "%";
     
     var MAPPercent = dataValues[9]/120 * 100;
     document.getElementById("barMAP").style.height = MAPPercent + "%";
