@@ -1,6 +1,4 @@
-// board: Generic ESP8266 Module
-// progress: this file is finished, no further modification required (unless you want to change the wifi name and password)
-//           working on index.h for website formatting
+// board: ESP8266 Board 3.0.2 (or newer) -> Generic ESP8266 Module
 // reference: https://community.appinventor.mit.edu/t/esp32-sends-data-to-the-app-over-wifi-in-realtime-javascript-ajax/46307
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
