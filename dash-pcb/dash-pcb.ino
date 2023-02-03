@@ -13,6 +13,9 @@
 //SD Library
 #include <SD.h>
 
+// shift light strip library
+#include <Adafruit_NeoPixel.h>
+
 #define LOG_DATA_TO_SERIAL
 
 // The I2C device. Determines which pins we use on the Teensy.
@@ -35,7 +38,7 @@ const uint8_t GYR_CTRL_REG0 = 0x0D;
 const uint8_t GYR_CTRL_REG1 = 0x13;
 
 int tele_data_1B[14]; // intList: ACCX, ACCY, ACCZ, GYRX, GYRY, GYRZ, exTemp(C), intakeTemp(C), coolantTemp(C), lambda1, dbtdc, fpr, to2
-int tele_data_2B[4][2]; // list for 2-byte data: engineSpeed(RPM), engineLoad(%), throttle(%), MAP(kPa), V_BAT
+int tele_data_2B[5][2]; // list for 2-byte data: engineSpeed(RPM), engineLoad(%), throttle(%), MAP(kPa), V_BAT
 bool tele_data_fan1; // fan 1 status
 bool tele_data_fpump; // fuel pump status
 // changed all to int, send only buffer values; further conversion done by html code
@@ -51,17 +54,24 @@ CAN_message_t msg;
 #define SD_MICROS_INCR          10000000
 #define ANALOG_READ_MICROS_INCR   200000
 #define REALTIME_TELE_MICROS_INCR  90000
+#define SHIFT_LIGHT_MICROS_INCR    30000
 
 //next time a reading should be taken
 unsigned long next_imu_micros;
 unsigned long next_sd_write_micros;
 unsigned long next_analog_read_micros;
 unsigned long next_realtime_tele_micros;
+unsigned long next_shift_light_frame_micros;
 
 //path to log file on sd card
 char log_name[] = {'X','X','X','X','/','l','o','g','.','c','s','v','\0'};
 char directory_name[] = {'X','X','X','X','\0'};
 File log_file;
+
+// for shift light color control
+uint32_t cR, cG, cB, cY, cW;
+uint8_t gear = 0;
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(16, 6, NEO_GRB + NEO_KHZ800);
 
 void setup(void) {
   //Set up communication with plugged in laptop if there is one
@@ -102,6 +112,15 @@ void setup(void) {
   can1.write(msg);
   
   Serial1.begin(9600); // to ESP8266 Telemetry
+
+  // shift light
+  pinMode(6, OUTPUT);
+  strip.begin();
+  cR = strip.Color(100,  0,  0);
+  cG = strip.Color(  0,100,  0);
+  cB = strip.Color(  0,  0,100);
+  cY = strip.Color( 71, 71,  0);
+  cW = strip.Color( 57, 57, 57);
 }
 
 void loop(void) {
@@ -111,7 +130,7 @@ void loop(void) {
   read_A1();
   wireless_tele();
   log_file.flush();
-  
+  shiftLight();
 }
 
 //Initialize the adafruit 3463
@@ -390,5 +409,46 @@ void wireless_tele(){
     Serial1.print(data_string);
     
     next_realtime_tele_micros = micros() + REALTIME_TELE_MICROS_INCR;
+  }
+}
+
+// shift light
+void shiftLight(){
+  if(micros() > next_shift_light_frame_micros){
+    int RPM = (tele_data_2B[0][0]*256+tele_data_2B[0][1])*0.39063f;
+    if(RPM<1000){
+      if(gear==0){
+        for(uint8_t i=0; i<16; i++){
+          strip.setPixelColor(i,cW);
+        }
+      }
+      else{
+        for(uint8_t i=0; i<gear; i++){
+          strip.setPixelColor(i,cW);
+        }
+        for(uint8_t i=gear; i<16; i++){
+          strip.setPixelColor(i,0);
+        }
+      }
+    }
+    else{
+      float p=RPM*100/13000;
+      for(uint8_t i=0; i<uint8_t(16*p/100); i++) {
+        if(i<4)
+          strip.setPixelColor(i,cB);
+        else if(i<8)
+          strip.setPixelColor(i,cG);
+        else if(i<12)
+          strip.setPixelColor(i,cY);
+        else if(i<16)
+          strip.setPixelColor(i,cR);
+      }
+      for(uint8_t i=uint8_t(16*p/100); i<16; i++) {
+        strip.setPixelColor(i,0);
+      }
+    }
+    strip.show();
+    
+    next_shift_light_frame_micros = micros() + SHIFT_LIGHT_MICROS_INCR;
   }
 }
