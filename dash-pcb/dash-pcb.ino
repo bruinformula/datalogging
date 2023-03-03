@@ -50,6 +50,12 @@ uint32_t next_analog_read_micros;
 uint32_t next_realtime_tele_micros;
 uint32_t next_shift_light_frame_micros;
 
+// timings & state vars for shifting
+uint32_t next_shift_update_time_micros;
+uint32_t pneumatic_state_change_micros;
+bool checkPins;
+uint8_t shiftDirection;
+
 // for shift light color control
 uint32_t color_red, color_green, color_blue, color_yellow, color_white;
 
@@ -104,6 +110,14 @@ void setup(void) {
   color_blue = strip.Color(  0,  0,100);
   color_yellow = strip.Color( 71, 71,  0);
   color_white = strip.Color( 57, 57, 57);
+
+  // setup shifting and set default state
+  pinMode(FWD_PIN, OUTPUT);
+  pinMode(RVS_PIN, OUTPUT);
+  pinMode(FLATSHIFT_PIN, OUTPUT);
+  pinMode(UPSHIFT_PIN, INPUT_PULLUP);
+  pinMode(DOWNSHIFT_PIN, INPUT_PULLUP);
+  checkPins = 1;
 }
 
 void loop(void) {
@@ -114,7 +128,8 @@ void loop(void) {
   wireless_tele();
   log_file.flush();
   update_shift_lights();
-
+  shift();
+  
 }
 
 //Initialize the SD card and make a new folder
@@ -459,5 +474,41 @@ void update_shift_lights(){
     strip.show();
     
     next_shift_light_frame_micros = micros() + SHIFT_LIGHT_MICROS_INCR;
+  }
+}
+
+void shift() {
+
+  if(micros() > next_shift_update_time_micros) {
+
+    // check input pins if needed
+    if (checkPins) {
+      bool upshiftPaddle = !digitalRead(UPSHIFT_PIN);
+      bool downshiftPaddle = !digitalRead(DOWNSHIFT_PIN);
+      // currently do nothing if both pressed (will change for neutral behavior once switch implemented)
+      if (upshiftPaddle ^ downshiftPaddle) {
+        if (upshiftPaddle) {
+          digitalWrite(FWD_PIN, HIGH);
+          digitalWrite(FLATSHIFT_PIN, HIGH);
+          log_pair("SHIFTER", "UPSHIFT");
+        } 
+        else if (downshiftPaddle) {
+          digitalWrite(RVS_PIN, HIGH);
+          log_pair("SHIFTER", "DOWNSHIFT");
+        }
+        checkPins = 0;
+        pneumatic_state_change_micros = micros() + SHIFT_PNEUMATIC_TIME;
+      }
+    }
+
+    // reset all pins to low after shifting executed
+    if (micros() > pneumatic_state_change_micros) {
+      digitalWrite(FWD_PIN, LOW);
+      digitalWrite(RVS_PIN, LOW);
+      digitalWrite(FLATSHIFT_PIN, LOW);
+      checkPins = 1;
+    }
+
+    next_shift_update_time_micros = micros() + SHIFT_UPDATE_INCR;
   }
 }

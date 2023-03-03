@@ -1,3 +1,5 @@
+#pragma once
+
 #include <Arduino.h>
 #include <stdint.h>
 
@@ -14,15 +16,14 @@ const uint8_t GYR_CTRL_REG1 = 0x13;
 const uint8_t ACC_MAG_ADDR = 0x1F;
 const uint8_t GYR_ADDR = 0x21;
 
-//LED on teensy
-const uint8_t LED_PIN = 13;
-//forward solenoid
-const uint8_t FWDS_PIN = 4;
-//reverse solenoid
-const uint8_t RVSS_PIN = 5;
-//level translator for shift lights
-const uint8_t SHIFT_LIGHTS_PIN = 6;
-
+// pins
+const uint8_t FWD_PIN = 4;              // forward solenoid
+const uint8_t RVS_PIN = 5;              // reverse solenoi
+const uint8_t FLATSHIFT_PIN = 6;        // flatshift pin
+const uint8_t LED_PIN = 13;             // dash LEDs
+const uint8_t SHIFT_LIGHTS_PIN = 14;    // level translator for shift lights
+const uint8_t UPSHIFT_PIN = 30;         // upshift paddle
+const uint8_t DOWNSHIFT_PIN = 31;       // downshift paddle
 
 //microseconds between each reading
 #define IMU_MICROS_INCR             1400
@@ -31,3 +32,10 @@ const uint8_t SHIFT_LIGHTS_PIN = 6;
 #define ANALOG_READ_MICROS_INCR   200000
 #define REALTIME_TELE_MICROS_INCR  90000
 #define SHIFT_LIGHT_MICROS_INCR    30000
+#define SHIFT_UPDATE_INCR           1000
+#define SHIFT_PNEUMATIC_TIME       25000
+
+// shifting state definition
+#define UPSHIFTING 1
+#define DOWNSHIFTING 2
+#define NEUTRAL 3
