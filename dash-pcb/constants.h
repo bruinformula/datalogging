@@ -24,6 +24,7 @@ const uint8_t LED_PIN = 13;             // dash LEDs
 const uint8_t SHIFT_LIGHTS_PIN = 14;    // level translator for shift lights
 const uint8_t UPSHIFT_PIN = 30;         // upshift paddle
 const uint8_t DOWNSHIFT_PIN = 31;       // downshift paddle
+const uint8_t WHEEL_SPARE_PIN = 32;     // spare wheel pin
 
 //microseconds between each reading
 #define IMU_MICROS_INCR             1400

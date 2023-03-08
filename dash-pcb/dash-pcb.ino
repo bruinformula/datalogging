@@ -117,7 +117,8 @@ void setup(void) {
   pinMode(FLATSHIFT_PIN, OUTPUT);
   pinMode(UPSHIFT_PIN, INPUT_PULLUP);
   pinMode(DOWNSHIFT_PIN, INPUT_PULLUP);
-  checkPins = 1;
+  pinMode(WHEEL_SPARE_PIN, INPUT_PULLDOWN);
+  checkPins = 0;  // never exec shf code
 }
 
 void loop(void) {
@@ -478,8 +479,10 @@ void update_shift_lights(){
 }
 
 void shift() {
-
   if(micros() > next_shift_update_time_micros) {
+    log_pair("UP_PADDLE", digitalRead(UPSHIFT_PIN));
+    log_pair("DOWN_PADDLE", digitalRead(DOWNSHIFT_PIN));
+    log_pair("OTHER_PIN", digitalRead(WHEEL_SPARE_PIN));
 
     // check input pins if needed
     if (checkPins) {
