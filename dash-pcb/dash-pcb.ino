@@ -38,17 +38,23 @@ bool tele_data_fpump; // fuel pump status
 FlexCAN_T4<CAN1, RX_SIZE_16, TX_SIZE_16> can1;
 CAN_message_t msg;
 
+//0: working, 1: uninitialized, 2: initialized no file, 3: initialization failed, 4: file creation failed
+uint8_t SD_status = 1;
+//time of last ECU message
+uint32_t last_ecu_can_micros;
+
 //path to log file on sd card
 char log_name[] = {'X','X','X','X','/','l','o','g','.','c','s','v','\0'};
 char directory_name[] = {'X','X','X','X','\0'};
 File log_file;
 
-//next time a reading should be taken
+//next time an action should be taken
 uint32_t next_imu_micros;
 uint32_t next_sd_write_micros;
 uint32_t next_analog_read_micros;
 uint32_t next_realtime_tele_micros;
 uint32_t next_shift_light_frame_micros;
+uint32_t next_status_micros;
 
 // for shift light color control
 uint32_t color_red, color_green, color_blue, color_yellow, color_white;
@@ -123,10 +129,14 @@ void prep_SD(){
   //Initialize the SD card reader built into the Teensy
   Serial.println("Initializing SD card...");
   if(SD.begin(BUILTIN_SDCARD)){
+    SD_status = 2;
     Serial.println("SD card initialization complete.");
   }else{
+    SD_status = 3;
     Serial.println("ERROR: Failed SD card initialization!");
   }
+
+  SD_status = 4;
   
   Serial.println("Finding unused directory...");
   // Set a, b, c, d to the first available 4 digits for a directory name
@@ -160,6 +170,7 @@ void prep_SD(){
   Serial.println(directory_name);
   if(log_file){
     Serial.println("Log file started.");
+    SD_status = 0;
     log_pair("MSG", "DIRNAME:"+String(directory_name));
   }else{
     Serial.println("Could not create log file.");
@@ -314,6 +325,12 @@ void read_CAN(){
     log_pair("CAN",data_string);
     //Serial1.println(data_string);
 
+    //check if message is from ecu by seeing if first 3 bytes match
+    bool message_is_from_ecu = (msg.id & 0x001F0A000) == 0x01F0A000;
+    if(message_is_from_ecu){
+      last_ecu_can_micros = micros();
+    }
+
     //update values to be sent over serial for certain messages
     if(msg.id == 0x01F0A000){
       /* 
@@ -369,6 +386,32 @@ void log_pair(String s1, String s2){
     Serial.print(',');
     Serial.println(s2);
   #endif
+}
+
+//send which log we're on over CAN
+void send_log_status(){
+
+  if(micros () < next_status_micros) return;
+  next_status_micros = micros() + STATUS_MICROS_INCR;
+
+  CAN_message_t msg;
+  msg.id = 0x00DA5400;
+  //first 4 bytes are the first 4 bytes of the log name (ie the directory, eg 0143)
+  msg.buf[0] = log_name[0];
+  msg.buf[1] = log_name[1];
+  msg.buf[2] = log_name[2];
+  msg.buf[3] = log_name[3];
+  //next byte is SD status, 0 if all is well
+  msg.buf[4] = SD_status;
+  
+  uint32_t tenths_since_last_ecu_msg = (micros() - last_ecu_can_micros) / 100000;
+  if(tenths_since_last_ecu_msg > 255) tenths_since_last_ecu_msg = 255;
+  uint8_t tenths_byte = tenths_since_last_ecu_msg;
+
+  msg.buf[5] = tenths_byte;
+  msg.buf[6] = 0;
+  msg.buf[7] = 0;
+
 }
 
 //send string for wireless telementry
