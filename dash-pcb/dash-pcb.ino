@@ -114,9 +114,9 @@ void setup(void) {
   pinMode(SHIFT_LIGHTS_PIN, OUTPUT);
   strip.begin();
   color_red = strip.Color(100,  0,  0);
-  color_green = strip.Color(  0,100,  0);
-  color_blue = strip.Color(  0,  0,100);
-  color_yellow = strip.Color( 71, 71,  0);
+  color_green = strip.Color(  0, 40,  0);
+  color_blue = strip.Color(  0,  0, 100);
+  color_yellow = strip.Color( 100, 50,  0);
   color_white = strip.Color( 57, 57, 57);
 
   // setup shifting and set default state
@@ -478,25 +478,26 @@ void update_shift_lights(){
       else{
         for(uint8_t i = 0; i < (gear*3); i += 3){
           strip.setPixelColor(i, color_blue);
+          strip.setPixelColor(i + 1, 0);
+          strip.setPixelColor(i + 2, 0);
         }
         for(uint8_t i = (gear*3); i<16; i++){
           strip.setPixelColor(i, 0);
         }
       }
     }
-    else{
-
+    else {
       //Divide RPM by 10000 and light up based on that
       //First light lights up at 1250 RPM, second at 2500,
       //all eight on each side light up at 10000
-      int number_of_lights = RPM * 8 / 10000;
+      int number_of_lights = RPM * 8 / 9500;
       if(number_of_lights > 8)
         number_of_lights = 8;
 
       //Light up the specified number of lights, color depending
       //on which light it is
       for(uint8_t i=0; i < number_of_lights; i++) {
-        if(i<5){
+        if(i<4){
           strip.setPixelColor(i, color_green);
           strip.setPixelColor(15 - i, color_green);
         }
@@ -513,7 +514,13 @@ void update_shift_lights(){
       //Turn off the other lights
       for(uint8_t i=number_of_lights; i<8; i++) {
         strip.setPixelColor(i,0);
-        strip.setPixelColor(15,0);
+        strip.setPixelColor(15 - i,0);
+      }
+
+      if(RPM > 10500 && micros() % 250000 > 125000) {
+        for(uint8_t i=0; i < 16; i++) {
+          strip.setPixelColor(i, 0);
+        }
       }
 
     }
