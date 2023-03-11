@@ -59,14 +59,16 @@ uint32_t next_status_micros;
 // timings & state vars for shifting
 uint32_t next_shift_update_time_micros;
 uint32_t pneumatic_state_change_micros;
-bool checkPins;
+uint32_t next_allowed_shift_micros;
+uint32_t upshiftLastStates = 0x0; // revert to uint_64
+uint32_t downshiftLastStates = 0x0; // revert to uint_64
 uint8_t shiftDirection;
 
 // for shift light color control
 uint32_t color_red, color_green, color_blue, color_yellow, color_white;
 
 uint8_t gear = 0;
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(16, 6, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(16, SHIFT_LIGHTS_PIN, NEO_GRB + NEO_KHZ800);
 
 void setup(void) {
   //Set up communication with plugged in laptop if there is one
@@ -123,8 +125,8 @@ void setup(void) {
   pinMode(FLATSHIFT_PIN, OUTPUT);
   pinMode(UPSHIFT_PIN, INPUT_PULLUP);
   pinMode(DOWNSHIFT_PIN, INPUT_PULLUP);
-  pinMode(WHEEL_SPARE_PIN, INPUT_PULLDOWN);
-  checkPins = 0;  // never exec shf code
+  pinMode(WHEEL_SPARE_PIN, OUTPUT);
+  digitalWrite(WHEEL_SPARE_PIN, LOW);
 }
 
 void loop(void) {
@@ -474,10 +476,10 @@ void update_shift_lights(){
 
       //If in gear, light up a number of lights to indicate which
       else{
-        for(uint8_t i = 0; i < gear; i++){
-          strip.setPixelColor(i, color_white);
+        for(uint8_t i = 0; i < (gear*3); i += 3){
+          strip.setPixelColor(i, color_blue);
         }
-        for(uint8_t i=gear; i<16; i++){
+        for(uint8_t i = (gear*3); i<16; i++){
           strip.setPixelColor(i, 0);
         }
       }
@@ -523,16 +525,18 @@ void update_shift_lights(){
 
 void shift() {
   if(micros() > next_shift_update_time_micros) {
-    log_pair("UP_PADDLE", digitalRead(UPSHIFT_PIN));
-    log_pair("DOWN_PADDLE", digitalRead(DOWNSHIFT_PIN));
-    log_pair("OTHER_PIN", digitalRead(WHEEL_SPARE_PIN));
+    bool upshiftPaddle = !digitalRead(UPSHIFT_PIN);
+    bool downshiftPaddle = !digitalRead(DOWNSHIFT_PIN);
+    
+    // update state by shifting over bit array and adding latest state
+    upshiftLastStates = (upshiftLastStates << 1) + upshiftPaddle;
+    downshiftLastStates = (downshiftLastStates << 1) + downshiftPaddle;
 
-    // check input pins if needed
-    if (checkPins) {
-      bool upshiftPaddle = !digitalRead(UPSHIFT_PIN);
-      bool downshiftPaddle = !digitalRead(DOWNSHIFT_PIN);
+    // require at least 59 cycles (59ms off paddle to shift again) & allowed shift time
+    if (micros() > next_allowed_shift_micros && !(upshiftLastStates >> 5)  && !(downshiftLastStates >> 5)) {
       // currently do nothing if both pressed (will change for neutral behavior once switch implemented)
-      if (upshiftPaddle ^ downshiftPaddle) {
+      // debounce by 5 latest values (5ms)
+      if (((upshiftLastStates & 0x1F) == 0x1F) ^ ((downshiftLastStates & 0x1F) == 0x1F)) {
         if (upshiftPaddle) {
           digitalWrite(FWD_PIN, HIGH);
           digitalWrite(FLATSHIFT_PIN, HIGH);
@@ -542,8 +546,8 @@ void shift() {
           digitalWrite(RVS_PIN, HIGH);
           log_pair("SHIFTER", "DOWNSHIFT");
         }
-        checkPins = 0;
         pneumatic_state_change_micros = micros() + SHIFT_PNEUMATIC_TIME;
+        next_allowed_shift_micros = micros() + SHIFT_PAUSE_TIME;
       }
     }
 
@@ -552,7 +556,6 @@ void shift() {
       digitalWrite(FWD_PIN, LOW);
       digitalWrite(RVS_PIN, LOW);
       digitalWrite(FLATSHIFT_PIN, LOW);
-      checkPins = 1;
     }
 
     next_shift_update_time_micros = micros() + SHIFT_UPDATE_INCR;

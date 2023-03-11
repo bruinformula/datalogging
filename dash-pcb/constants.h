@@ -22,8 +22,8 @@ const uint8_t RVS_PIN = 5;              // reverse solenoi
 const uint8_t FLATSHIFT_PIN = 6;        // flatshift pin
 const uint8_t LED_PIN = 13;             // dash LEDs
 const uint8_t SHIFT_LIGHTS_PIN = 14;    // level translator for shift lights
-const uint8_t UPSHIFT_PIN = 30;         // upshift paddle
-const uint8_t DOWNSHIFT_PIN = 31;       // downshift paddle
+const uint8_t DOWNSHIFT_PIN = 30;       // downshift paddle
+const uint8_t UPSHIFT_PIN = 31;         // upshift paddle
 const uint8_t WHEEL_SPARE_PIN = 32;     // spare wheel pin
 
 //microseconds between each reading
@@ -33,9 +33,10 @@ const uint8_t WHEEL_SPARE_PIN = 32;     // spare wheel pin
 #define ANALOG_READ_MICROS_INCR   200000
 #define REALTIME_TELE_MICROS_INCR  90000
 #define SHIFT_LIGHT_MICROS_INCR    30000
-#define STATUS_MICROS_INCR          1000000
+#define STATUS_MICROS_INCR       1000000
 #define SHIFT_UPDATE_INCR           1000
-#define SHIFT_PNEUMATIC_TIME       25000
+#define SHIFT_PNEUMATIC_TIME       50000
+#define SHIFT_PAUSE_TIME          250000
 
 // shifting state definition
 #define UPSHIFTING 1
