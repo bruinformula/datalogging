@@ -65,31 +65,73 @@ uint32_t downshiftLastStates = 0x0; // revert to uint_64
 uint8_t shiftDirection;
 
 // for shift light color control
-uint32_t color_red, color_green, color_blue, color_yellow, color_white;
+uint32_t color_red, color_green, color_blue, color_yellow, color_white, color_purple;
 
 uint8_t gear = 0;
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(16, SHIFT_LIGHTS_PIN, NEO_GRB + NEO_KHZ800);
 
 void setup(void) {
+
+  // shift light color and object initiation
+  pinMode(SHIFT_LIGHTS_PIN, OUTPUT);
+  strip.begin();
+  strip.show(); 
+  color_red = strip.Color(100,  0,  0);
+  color_green = strip.Color(  0, 40,  0);
+  color_blue = strip.Color(  0,  0, 100);
+  color_yellow = strip.Color( 100, 50,  0);
+  color_white = strip.Color( 57, 57, 57);
+  color_purple = strip.Color(100, 0, 60);
+
+  strip.clear();
+  strip.setPixelColor(0, color_purple);
+  strip.setPixelColor(1, color_purple);
+  strip.show();
+
   //Set up communication with plugged in laptop if there is one
   Serial.begin(115200);
+  strip.setPixelColor(2, color_purple);
+  strip.show();
+
   //Turn on on-board LED, wait for Serial
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, HIGH);
-  delay(400);
+
+  delay(200);
+  strip.setPixelColor(3, color_purple);
+  strip.show();
+  delay(200);
+  strip.setPixelColor(4, color_purple);
+  strip.show();
   
   Serial.println("---BEGIN---");
   Serial.println("");
+
+  strip.setPixelColor(5, color_purple);
+  strip.show();
   
   prep_SD();
+  
+  strip.setPixelColor(6, SD_status>0 ? color_purple : color_red);
+  strip.setPixelColor(7, SD_status>0 ? color_purple : color_red);
+  strip.show();
   
   //Initialize the CAN bus at 500kbps
   Serial.println("Initializing CAN bus...");
   can1.begin();
+
+  strip.setPixelColor(8, color_purple);
+  strip.setPixelColor(9, color_purple);
+  strip.show();
+
   can1.setBaudRate(500000);
   Serial.println("CAN bus initialized.");
   log_pair("MSG", "CAN init done");
   log_file.flush();
+  
+  strip.setPixelColor(10, color_purple);
+  strip.setPixelColor(11, color_purple);
+  strip.show();
   
   // Initialise the I2C bus at 100kbps
   master.begin(100 * 1000U);
@@ -97,9 +139,16 @@ void setup(void) {
   log_pair("MSG", "I2C init done");
   log_file.flush();
   
+  strip.setPixelColor(12, color_purple);
+  strip.setPixelColor(13, color_purple);
+  strip.show();
+  
   // Initialize accelerometer and gyroscope
   prep_3463();
   log_file.flush();
+  
+  strip.setPixelColor(14, color_purple);
+  strip.show();
   
   Serial.println("Sending CAN message");
   log_pair("MSG", "Sending CAN test message");
@@ -108,16 +157,10 @@ void setup(void) {
   msg.buf[1] = 13;
   can1.write(msg);
   
+  strip.setPixelColor(15, color_purple);
+  strip.show();
+  
   Serial1.begin(9600); // to ESP8266 Telemetry
-
-  // shift light
-  pinMode(SHIFT_LIGHTS_PIN, OUTPUT);
-  strip.begin();
-  color_red = strip.Color(100,  0,  0);
-  color_green = strip.Color(  0, 40,  0);
-  color_blue = strip.Color(  0,  0, 100);
-  color_yellow = strip.Color( 100, 50,  0);
-  color_white = strip.Color( 57, 57, 57);
 
   // setup shifting and set default state
   pinMode(FWD_PIN, OUTPUT);
@@ -127,6 +170,9 @@ void setup(void) {
   pinMode(DOWNSHIFT_PIN, INPUT_PULLUP);
   pinMode(WHEEL_SPARE_PIN, OUTPUT);
   digitalWrite(WHEEL_SPARE_PIN, LOW);
+  
+  delay(1000);
+
 }
 
 void loop(void) {
@@ -188,7 +234,7 @@ void prep_SD(){
   Serial.println(directory_name);
   if(log_file){
     Serial.println("Log file started.");
-    SD_status = 0;
+    if(SD_status == 2) SD_status = 0;
     log_pair("MSG", "DIRNAME:"+String(directory_name));
   }else{
     Serial.println("Could not create log file.");
@@ -466,11 +512,12 @@ void update_shift_lights(){
     int RPM = (tele_data_2B[0][0] * 256 + tele_data_2B[0][1]) * 0.39063f;
 
     //At low RPM (ie car stopped), show gear in blue instead of showing RPM.
-    if(RPM < 1000){
+    if(RPM < 600){
       //If gear is neutral, light up all lights white
       if(gear == 0){
         for(uint8_t i=0; i<16; i++){
-          strip.setPixelColor(i,color_white);
+          //set to green if cranking, white otherwise
+          strip.setPixelColor(i,(RPM > 50) ? color_yellow : color_white);
         }
       }
 
@@ -487,10 +534,14 @@ void update_shift_lights(){
       }
     }
     else {
-      //Divide RPM by 10000 and light up based on that
-      //First light lights up at 1250 RPM, second at 2500,
-      //all eight on each side light up at 10000
-      int number_of_lights = RPM * 8 / 9500;
+
+      int number_of_lights;
+      if(RPM < SL_RPM_MIN){
+        number_of_lights = 1;        
+      }else{
+        number_of_lights = (RPM - SL_RPM_MIN) * 7 / (SL_RPM_MAX - SL_RPM_MIN) + 1
+      }
+      
       if(number_of_lights > 8)
         number_of_lights = 8;
 
@@ -517,10 +568,9 @@ void update_shift_lights(){
         strip.setPixelColor(15 - i,0);
       }
 
-      if(RPM > 10500 && micros() % 250000 > 125000) {
-        for(uint8_t i=0; i < 16; i++) {
-          strip.setPixelColor(i, 0);
-        }
+      //if rpm is high enough, turn off for some      
+      if(RPM > SL_RPM_BLINK && micros() % SL_BLINK_LENGTH > SL_BLINK_OFF) {
+        strip.clear();
       }
 
     }

@@ -42,3 +42,15 @@ const uint8_t WHEEL_SPARE_PIN = 32;     // spare wheel pin
 #define UPSHIFTING 1
 #define DOWNSHIFTING 2
 #define NEUTRAL 3
+
+//shift light configuration
+//where it starts lighting up beyond 1 light
+const uint8_t SL_RPM_MIN = 5000;
+//where it is fully lit up
+const uint8_t SL_RPM_MAX = 9500;
+//where it starts blinking
+const uint8_t SL_RPM_BLINK = 10500;
+//length between each blink, us
+const uint8_t SL_BLINK_LENGTH = 250000
+//how much of the blink is off, us
+const uint8_t SL_BLINK_OFF = 160000
