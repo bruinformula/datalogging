@@ -57,6 +57,7 @@ uint32_t next_realtime_tele_micros;
 uint32_t next_shift_light_frame_micros;
 uint32_t next_status_micros;
 uint32_t next_egt_micros;
+uint32_t next_flush_micros;
 
 // timings & state vars for shifting
 uint32_t next_shift_update_time_micros;
@@ -177,16 +178,14 @@ void setup(void) {
 }
 
 void loop(void) {
-  
   read_3463();
   read_CAN();
   read_A1();
   read_EGT();
   wireless_tele();
-  log_file.flush();
+  flush();
   update_shift_lights();
   shift();
-  
 }
 
 //Initialize the SD card and make a new folder
@@ -267,7 +266,7 @@ void read_3463(){
   acc_mag.read(0x00, response, 7, false);
   
   if(!(response[0] & 0b111)){
-    log_pair("MSG", "Accelerometer not ready");
+    log_pair("MSG", "ANR");
     tele_data_1B[0]=0;tele_data_1B[1]=0;tele_data_1B[2]=0;
   } else{
     //combine 6 bits MSB in response[1] with 8 bits LSB in [2]
@@ -291,8 +290,7 @@ void read_3463(){
   gyr.read(0x00, response, 7, false);
   
   if(!(response[0] & 0b111)){
-    log_pair("MSG", "Gyroscope not ready");
-    prep_3463();
+    log_pair("MSG", "GNR");
     tele_data_1B[3]=0;tele_data_1B[4]=0;tele_data_1B[5]=0;
   } else{
     
@@ -313,7 +311,7 @@ void read_3463(){
     tele_data_1B[3]=converted_total_x;tele_data_1B[4]=converted_total_y;tele_data_1B[5]=converted_total_z;
   
   }
-  
+
   //Set time for next reading
   next_imu_micros = max(micros(), next_imu_micros + IMU_MICROS_INCR);
   
@@ -328,7 +326,7 @@ void read_EGT(){
   //Get data from accelerometer output registers
   acc_mag.read(0x00, response, 2, false);
   //Scale according to datasheet of MCP9000
-  short egt = response[0] << 8 + response[1];
+  short egt = (response[0] << 8) + response[1];
 
   //prepare CAN message
   msg.id = 0x00DA5401;
@@ -500,6 +498,14 @@ void send_log_status(){
 
 }
 
+void flush() {
+  if (micros() > next_flush_micros) {
+    log_file.flush();
+
+    next_flush_micros = micros() + SD_MICROS_INCR;
+  }
+}
+
 //send string for wireless telementry
 void wireless_tele(){
   
@@ -619,11 +625,11 @@ void shift() {
         if (upshiftPaddle) {
           digitalWrite(FWD_PIN, HIGH);
           digitalWrite(FLATSHIFT_PIN, HIGH);
-          log_pair("SHIFTER", "UPSHIFT");
+          log_pair("SHF", "UPSHIFT");
         } 
         else if (downshiftPaddle) {
           digitalWrite(RVS_PIN, HIGH);
-          log_pair("SHIFTER", "DOWNSHIFT");
+          log_pair("SHF", "DOWNSHIFT");
         }
         pneumatic_state_change_micros = micros() + SHIFT_PNEUMATIC_TIME;
         next_allowed_shift_micros = micros() + SHIFT_PAUSE_TIME;

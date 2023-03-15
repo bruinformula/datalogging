@@ -61,4 +61,4 @@ const uint32_t SL_BLINK_LENGTH = 250000;
 const uint32_t SL_BLINK_OFF = 160000;
 
 //when to blink shift lights red
-const uint32_t EGT_THRES = 900;
+const int32_t EGT_THRES = 900;
