@@ -29,13 +29,14 @@ I2CMaster& master = Master;
 //objects for the i2c sensors (adafruit 3463)
 I2CDevice acc_mag = I2CDevice(master, ACC_MAG_ADDR, _BIG_ENDIAN);
 I2CDevice gyr = I2CDevice(master, GYR_ADDR, _BIG_ENDIAN);
+I2CDevice egt_amp = I2CDevice(master, EGT_AMP_ADDR, _BIG_ENDIAN);
 
-int tele_data_1B[14]; // intList: ACCX, ACCY, ACCZ, GYRX, GYRY, GYRZ, exTemp(C), intakeTemp(C), coolantTemp(C), lambda1, dbtdc, fpr, to2
+int tele_data_1B[15]; // intList: ACCX, ACCY, ACCZ, GYRX, GYRY, GYRZ, exTemp(C), intakeTemp(C), coolantTemp(C), lambda1, dbtdc, fpr, to2, injduty
 int tele_data_2B[5][2]; // list for 2-byte data: engineSpeed(RPM), engineLoad(%), throttle(%), MAP(kPa), V_BAT
 bool tele_data_fan1; // fan 1 status
 bool tele_data_fpump; // fuel pump status
 
-FlexCAN_T4<CAN1, RX_SIZE_16, TX_SIZE_16> can1;
+FlexCAN_T4<CAN2, RX_SIZE_16, TX_SIZE_16> can2;
 CAN_message_t msg;
 
 //0: working, 1: uninitialized, 2: initialized no file, 3: initialization failed, 4: file creation failed
@@ -55,6 +56,7 @@ uint32_t next_analog_read_micros;
 uint32_t next_realtime_tele_micros;
 uint32_t next_shift_light_frame_micros;
 uint32_t next_status_micros;
+uint32_t next_egt_micros;
 
 // timings & state vars for shifting
 uint32_t next_shift_update_time_micros;
@@ -70,6 +72,8 @@ uint32_t color_red, color_green, color_blue, color_yellow, color_white, color_pu
 uint8_t gear = 0;
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(16, SHIFT_LIGHTS_PIN, NEO_GRB + NEO_KHZ800);
 
+bool egt_warn = false;
+
 void setup(void) {
 
   // shift light color and object initiation
@@ -84,13 +88,13 @@ void setup(void) {
   color_purple = strip.Color(100, 0, 60);
 
   strip.clear();
-  strip.setPixelColor(0, color_purple);
-  strip.setPixelColor(1, color_purple);
+  strip.setPixelColor(0, color_white);
+  strip.setPixelColor(1, color_white);
   strip.show();
 
   //Set up communication with plugged in laptop if there is one
   Serial.begin(115200);
-  strip.setPixelColor(2, color_purple);
+  strip.setPixelColor(2, color_white);
   strip.show();
 
   //Turn on on-board LED, wait for Serial
@@ -98,39 +102,36 @@ void setup(void) {
   digitalWrite(LED_PIN, HIGH);
 
   delay(200);
-  strip.setPixelColor(3, color_purple);
-  strip.show();
-  delay(200);
-  strip.setPixelColor(4, color_purple);
-  strip.show();
+  strip.setPixelColor(3, color_white);
+  strip.setPixelColor(4, color_white);
   
   Serial.println("---BEGIN---");
   Serial.println("");
 
-  strip.setPixelColor(5, color_purple);
+  strip.setPixelColor(5, color_white);
   strip.show();
   
   prep_SD();
   
-  strip.setPixelColor(6, SD_status>0 ? color_purple : color_red);
-  strip.setPixelColor(7, SD_status>0 ? color_purple : color_red);
+  strip.setPixelColor(6, SD_status>0 ? color_white : color_red);
+  strip.setPixelColor(7, SD_status>0 ? color_white : color_red);
   strip.show();
   
   //Initialize the CAN bus at 500kbps
   Serial.println("Initializing CAN bus...");
-  can1.begin();
+  can2.begin();
 
-  strip.setPixelColor(8, color_purple);
-  strip.setPixelColor(9, color_purple);
+  strip.setPixelColor(8, color_white);
+  strip.setPixelColor(9, color_white);
   strip.show();
 
-  can1.setBaudRate(500000);
+  can2.setBaudRate(500000);
   Serial.println("CAN bus initialized.");
   log_pair("MSG", "CAN init done");
   log_file.flush();
   
-  strip.setPixelColor(10, color_purple);
-  strip.setPixelColor(11, color_purple);
+  strip.setPixelColor(10, color_white);
+  strip.setPixelColor(11, color_white);
   strip.show();
   
   // Initialise the I2C bus at 100kbps
@@ -139,15 +140,15 @@ void setup(void) {
   log_pair("MSG", "I2C init done");
   log_file.flush();
   
-  strip.setPixelColor(12, color_purple);
-  strip.setPixelColor(13, color_purple);
+  strip.setPixelColor(12, color_white);
+  strip.setPixelColor(13, color_white);
   strip.show();
   
   // Initialize accelerometer and gyroscope
   prep_3463();
   log_file.flush();
   
-  strip.setPixelColor(14, color_purple);
+  strip.setPixelColor(14, color_white);
   strip.show();
   
   Serial.println("Sending CAN message");
@@ -155,12 +156,12 @@ void setup(void) {
   msg.id = 0x12;
   msg.buf[0] = 12;
   msg.buf[1] = 13;
-  can1.write(msg);
+  can2.write(msg);
   
-  strip.setPixelColor(15, color_purple);
+  strip.setPixelColor(15, color_white);
   strip.show();
   
-  Serial1.begin(9600); // to ESP8266 Telemetry
+  Serial8.begin(9600); // to ESP8266 Telemetry
 
   // setup shifting and set default state
   pinMode(FWD_PIN, OUTPUT);
@@ -171,7 +172,7 @@ void setup(void) {
   pinMode(WHEEL_SPARE_PIN, OUTPUT);
   digitalWrite(WHEEL_SPARE_PIN, LOW);
   
-  delay(1000);
+  delay(200);
 
 }
 
@@ -180,6 +181,7 @@ void loop(void) {
   read_3463();
   read_CAN();
   read_A1();
+  read_EGT();
   wireless_tele();
   log_file.flush();
   update_shift_lights();
@@ -317,35 +319,54 @@ void read_3463(){
   
 }
 
+void read_EGT(){
+  
+  //If current time is past time for next reading, do reading
+  if(micros() < next_egt_micros) return;
+  
+  uint8_t response[2];
+  //Get data from accelerometer output registers
+  acc_mag.read(0x00, response, 2, false);
+  //Scale according to datasheet of MCP9000
+  short egt = response[0] << 8 + response[1];
+
+  //prepare CAN message
+  msg.id = 0x00DA5401;
+  
+  msg.buf[0] = response[0];
+  msg.buf[1] = response[1];
+
+  can2.write(msg);
+
+  log_pair("EGT", egt);
+
+  egt_warn = egt > EGT_THRES;
+
+  next_egt_micros = micros() + EGT_MICROS_INCR;
+
+}
+
 //Initialize the adafruit 3463
 void prep_3463(){
   
   next_imu_micros = micros() + IMU_MICROS_INCR;
   uint8_t result_byte;
-  
-  Serial.println("Attempting communication with ACC_MAG");
 
   //This register is the id of the device, which should always be 0xC7
   acc_mag.read(ACC_MAG_WHOAMI_REG, &result_byte, false);
   
   if(result_byte != 0xC7){
     //wrong or no id, print error
-    Serial.print("ERROR: accel mag wrong who_am_i, reported 0x");
-    Serial.println(result_byte, HEX);
     log_file.print("ERR,am whoami,");
     log_file.println(result_byte,HEX);
   }else{
-    Serial.println("ACC_MAG sensor found");
     log_file.println("MSG,acc_mag found");
   }
   
-  Serial.println("Attempting communication with GYR");
   //This register is the id of the device, which should always be 0b11010111
   acc_mag.read(GYR_WHOAMI_REG, &result_byte, false);
   
   if(result_byte != 0b11010111){
-    Serial.print("ERROR: gyr wrong who_am_i, reported 0x");
-    Serial.println(result_byte, HEX);
     log_file.print("ERR,am whoami,");
     log_file.println(result_byte,HEX);
   }else{
@@ -376,7 +397,7 @@ void prep_3463(){
 //Check all CAN messages, log them, and send some to telemetry
 void read_CAN(){
 
-  while ( can1.read(msg) ) {
+  while ( can2.read(msg) ) {
     
     //create an empty string
     char data_string[100] = {0};
@@ -387,7 +408,7 @@ void read_CAN(){
     
     //log that with CAN message name and timestamp attached
     log_pair("CAN",data_string);
-    //Serial1.println(data_string);
+    //Serial8.println(data_string);
 
     //check if message is from ecu by seeing if first 3 bytes match
     bool message_is_from_ecu = (msg.id & 0x001F0A000) == 0x01F0A000;
@@ -458,7 +479,6 @@ void send_log_status(){
   if(micros () < next_status_micros) return;
   next_status_micros = micros() + STATUS_MICROS_INCR;
 
-  CAN_message_t msg;
   msg.id = 0x00DA5400;
   //first 4 bytes are the first 4 bytes of the log name (ie the directory, eg 0143)
   msg.buf[0] = log_name[0];
@@ -476,6 +496,8 @@ void send_log_status(){
   msg.buf[6] = 0;
   msg.buf[7] = 0;
 
+  can2.write(msg);
+
 }
 
 //send string for wireless telementry
@@ -490,7 +512,7 @@ void wireless_tele(){
     // lambda1|manifold_pressure(kPa)|fan1(bool)|
     // logFileName|targetO2|DBTDC|INJDUTY|VBAT|FPUMP|FPR
      // 0: ACC, 1: GYR, 2: EGT, 3: ENGSPD, 4: ENGLD, 5: TPS, 
-      // 6: IAT, 7: CLT, 8: O2, 9: MAP, 10: FAN, 11: LOGNAME, 12: TO2, 13: DBTDC, 14: INJDUTY, 15: VBAT, 16: FPUMP, 17: FPR
+      // 6: IAT, 7: CLT, 8: O2, 9: MAP, 10: FAN, 11: LOGNAME, 12: TO2, 13: DBTDC, 14: INJDUTY, 15: VBAT, 16: FPUMP, 17: FPR, 18: EGT
     sprintf(data_string,"%d,%d,%d|%d,%d,%d|%d|%d,%d|%d,%d|%d,%d|%d|%d|%d|%d,%d|%d|%s|%d|%d|%d|%d,%d|%d|%d|\n",
     tele_data_1B[0],    tele_data_1B[1],    tele_data_1B[2],    tele_data_1B[3],    tele_data_1B[4],
     tele_data_1B[5],    tele_data_1B[6],    tele_data_2B[0][0], tele_data_2B[0][1], tele_data_2B[1][0],
@@ -498,7 +520,7 @@ void wireless_tele(){
     tele_data_1B[9],    tele_data_2B[3][0], tele_data_2B[3][1], tele_data_fan1,     log_name, 
     tele_data_1B[12],   tele_data_1B[10],   tele_data_1B[13],   tele_data_2B[4][0], tele_data_2B[4][1], 
     tele_data_fpump,    tele_data_1B[11]);
-    Serial1.print(data_string);
+    Serial8.print(data_string);
     
     next_realtime_tele_micros = micros() + REALTIME_TELE_MICROS_INCR;
   }
@@ -509,15 +531,15 @@ void update_shift_lights(){
   if(micros() > next_shift_light_frame_micros){
 
     //Get RPM from most recent CAN data
-    int RPM = (tele_data_2B[0][0] * 256 + tele_data_2B[0][1]) * 0.39063f;
+    uint32_t RPM = (tele_data_2B[0][0] * 256 + tele_data_2B[0][1]) * 0.39063f;
 
     //At low RPM (ie car stopped), show gear in blue instead of showing RPM.
     if(RPM < 600){
       //If gear is neutral, light up all lights white
       if(gear == 0){
         for(uint8_t i=0; i<16; i++){
-          //set to green if cranking, white otherwise
-          strip.setPixelColor(i,(RPM > 50) ? color_yellow : color_white);
+          //set to yellow if cranking, purple otherwise
+          strip.setPixelColor(i,(RPM > 50) ? color_yellow : color_purple);
         }
       }
 
@@ -539,7 +561,7 @@ void update_shift_lights(){
       if(RPM < SL_RPM_MIN){
         number_of_lights = 1;        
       }else{
-        number_of_lights = (RPM - SL_RPM_MIN) * 7 / (SL_RPM_MAX - SL_RPM_MIN) + 1
+        number_of_lights = (RPM - SL_RPM_MIN) * 7 / (SL_RPM_MAX - SL_RPM_MIN) + 1;
       }
       
       if(number_of_lights > 8)
