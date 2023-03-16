@@ -25,7 +25,7 @@
 #define LOG_VERSION 3
 
 // The I2C device. Determines which pins we use on the Teensy.
-I2CMaster& master = Master;
+I2CMaster& master = Master2;
 //objects for the i2c sensors (adafruit 3463)
 I2CDevice acc_mag = I2CDevice(master, ACC_MAG_ADDR, _BIG_ENDIAN);
 I2CDevice gyr = I2CDevice(master, GYR_ADDR, _BIG_ENDIAN);
@@ -86,7 +86,7 @@ void setup(void) {
   color_blue = strip.Color(  0,  0, 100);
   color_yellow = strip.Color( 100, 50,  0);
   color_white = strip.Color( 57, 57, 57);
-  color_purple = strip.Color(100, 0, 60);
+  color_purple = strip.Color(70, 0, 12);
 
   strip.clear();
   strip.setPixelColor(0, color_white);
@@ -267,7 +267,9 @@ void read_3463(){
   
   if(!(response[0] & 0b111)){
     log_pair("MSG", "ANR");
-    tele_data_1B[0]=0;tele_data_1B[1]=0;tele_data_1B[2]=0;
+    prep_3463();
+    next_imu_micros = micros() + 1000000;
+    return;
   } else{
     //combine 6 bits MSB in response[1] with 8 bits LSB in [2]
     total = (int16_t)(((response[1] << 8) | response[2])) >> 2;
@@ -291,7 +293,9 @@ void read_3463(){
   
   if(!(response[0] & 0b111)){
     log_pair("MSG", "GNR");
-    tele_data_1B[3]=0;tele_data_1B[4]=0;tele_data_1B[5]=0;
+    prep_3463();
+    next_imu_micros = micros() + 1000000;
+    return;
   } else{
     
     //combine 8 bits MSB in response[1] with 8 bits LSB in [2]
@@ -323,10 +327,11 @@ void read_EGT(){
   if(micros() < next_egt_micros) return;
   
   uint8_t response[2];
+
+  egt_amp.read(0b00100000, response, 2, false);
+  log_pair("EGTID", response[0]);
   //Get data from accelerometer output registers
-  acc_mag.read(0x00, response, 2, false);
-  //Scale according to datasheet of MCP9000
-  short egt = (response[0] << 8) + response[1];
+  egt_amp.read(0x00, response, 2, false);
 
   //prepare CAN message
   msg.id = 0x00DA5401;
@@ -336,8 +341,11 @@ void read_EGT(){
 
   can2.write(msg);
 
-  log_pair("EGT", egt);
+  //Scale according to datasheet of MCP9000
+  short egt_bits = (response[0] << 8) + response[1];
+  float egt = egt_bits / 16.0;
 
+  log_pair("EGT", egt);
   egt_warn = egt > EGT_THRES;
 
   next_egt_micros = micros() + EGT_MICROS_INCR;

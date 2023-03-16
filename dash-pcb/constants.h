@@ -33,7 +33,7 @@ const uint8_t WHEEL_SPARE_PIN = 32;     // spare wheel pin
 //microseconds between each function
 #define IMU_MICROS_INCR             1400
 #define IMU_CHECK_MICROS_INCR     100000
-#define EGT_MICROS_INCR           100000
+#define EGT_MICROS_INCR          1000000
 #define SD_MICROS_INCR          10000000
 #define ANALOG_READ_MICROS_INCR   200000
 #define REALTIME_TELE_MICROS_INCR  90000
