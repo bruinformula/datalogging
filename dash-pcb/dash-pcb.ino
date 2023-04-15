@@ -180,7 +180,7 @@ void setup(void) {
 void loop(void) {
   read_3463();
   read_CAN();
-  read_A1();
+  //read_A1();
   read_EGT();
   wireless_tele();
   flush();
@@ -329,25 +329,27 @@ void read_EGT(){
   uint8_t response[2];
 
   egt_amp.read(0b00100000, response, 2, false);
-  log_pair("EGTID", response[0]);
-  //Get data from accelerometer output registers
-  egt_amp.read(0x00, response, 2, false);
+  if(response[0] != 64){
+    log_pair("MSG", "No EGT AMP");
+  }else{
+    //Get data from accelerometer output registers
+    egt_amp.read(0x00, response, 2, false);
 
-  //prepare CAN message
-  msg.id = 0x00DA5401;
-  
-  msg.buf[0] = response[0];
-  msg.buf[1] = response[1];
+    //prepare CAN message
+    msg.id = 0x00DA5401;
+    
+    msg.buf[0] = response[0];
+    msg.buf[1] = response[1];
 
-  can2.write(msg);
+    can2.write(msg);
 
-  //Scale according to datasheet of MCP9000
-  short egt_bits = (response[0] << 8) + response[1];
-  float egt = egt_bits / 16.0;
+    //Scale according to datasheet of MCP9000
+    short egt_bits = (response[0] << 8) + response[1];
+    float egt = egt_bits / 16.0;
 
-  log_pair("EGT", egt);
-  egt_warn = egt > EGT_THRES;
-
+    log_pair("EGT", egt);
+    egt_warn = egt > EGT_THRES;
+  }
   next_egt_micros = micros() + EGT_MICROS_INCR;
 
 }
