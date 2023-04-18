@@ -440,6 +440,7 @@ void read_CAN(){
       tele_data_1B[9] = msg.buf[0];// lambda1
       tele_data_1B[10] = msg.buf[5]; //DBTDC
       tele_data_2B[4][0] = msg.buf[6]; tele_data_2B[3][1] = msg.buf[7]; //vbat
+      gear = msg.buf[4];
     }
     else if(msg.id == 0x01F0A004){
       tele_data_2B[3][0] = msg.buf[0]; tele_data_2B[3][1] = msg.buf[1]; // MAP
