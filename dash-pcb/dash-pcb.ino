@@ -636,16 +636,20 @@ void shift() {
         if (upshiftPaddle) {
           digitalWrite(FWD_PIN, HIGH);
           digitalWrite(FLATSHIFT_PIN, HIGH);
-          log_pair("SHF", "UPSHIFT");
+          log_pair("SHF", gear+1);
         } 
         else if (downshiftPaddle) {
           digitalWrite(RVS_PIN, HIGH);
-          log_pair("SHF", "DOWNSHIFT");
+          if(gear = 1) log_pair("SHF", -1);
+          else log_pair("SHF", -(gear-1));
         }
         pneumatic_state_change_micros = micros() + SHIFT_PNEUMATIC_TIME;
         next_allowed_shift_micros = micros() + SHIFT_PAUSE_TIME;
       }
+    } else {
+      log_pair("SHF", 0);
     }
+
 
     // reset all pins to low after shifting executed
     if (micros() > pneumatic_state_change_micros) {
