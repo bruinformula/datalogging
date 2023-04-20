@@ -64,13 +64,14 @@ void loop(void){
   if (Serial.available() > 0){
     caracter = Serial.read(); // read a single character
     texto += caracter; // append to texto
-      
     if (caracter == '\n') 
     { 
       // if line ends
-      texto_send = texto; // confirm text to send
-      //Serial.println("Write a text in Serial Monitor and 'Send'");
-      Serial.print(texto); // print out what has been sent
+      if(texto[0]=='B' && texto[1]=='F' && texto[2]=='R'){// verlify if it's our message
+        texto_send = texto.substring(3); // confirm text to send
+        //Serial.println("Write a text in Serial Monitor and 'Send'");
+        Serial.print(texto); // print out what has been sent
+      }
       texto = ""; // clean texto
     }
   }
