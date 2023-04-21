@@ -40,7 +40,7 @@ const uint8_t WHEEL_SPARE_PIN = 32;     // spare wheel pin
 #define SHIFT_LIGHT_MICROS_INCR    30000
 #define STATUS_MICROS_INCR       1000000
 #define SHIFT_UPDATE_INCR           1000
-#define SHIFT_PNEUMATIC_TIME       50000
+#define SHIFT_PNEUMATIC_TIME       75000
 #define SHIFT_PAUSE_TIME          250000
 
 // shifting state definition
