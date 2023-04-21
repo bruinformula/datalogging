@@ -641,7 +641,7 @@ void shift() {
         } 
         else if (downshiftPaddle) {
           digitalWrite(RVS_PIN, HIGH);
-          if(gear = 1) log_pair("SHF", -1);
+          if(gear == 1) log_pair("SHF", -1);
           else log_pair("SHF", -(gear-1));
         }
         pneumatic_state_change_micros = micros() + SHIFT_PNEUMATIC_TIME;
