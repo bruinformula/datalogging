@@ -183,6 +183,7 @@ void loop(void) {
   //read_A1();
   read_EGT();
   wireless_tele();
+  send_log_status();
   flush();
   update_shift_lights();
   shift();
