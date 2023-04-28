@@ -1,3 +1,9 @@
+/*
+ * to add:::
+ * 
+ * sht pants case for each read method
+ */
+
 
 //costnats r probalby inportant
 #include "constants.h"
@@ -28,17 +34,19 @@
  */
 #define CAN_ID_FRAME    = 0xC000000
 #define CAN_ID_LIN_POT  = 0x0001000
-#define CAN_ID_SG_01  = 0x0002000
-#define CAN_ID_SG_02  = 0x0003000
-#define CAN_ID_SG_03  = 0x0004000
-#define CAN_ID_BRK_TEMP  = 0x0005000
-#define CAN_ID_TIRE_TEMP  = 0x0006000
+#define CAN_ID_ADCA  = 0x0002000
+#define CAN_ID_ADCB  = 0x0003000
+#define CAN_ID_BRK_TEMP  = 0x0004000
+#define CAN_ID_TIRE_TEMP  = 0x0005000
 
 //next time reads should be read (in microseconds)
 uint32_t nextLPMicros;
 uint32_t nextSGMicros;
 uint32_t nextBrkTempMicros;
 uint32_t nextTireTempMicros;
+uint32_t nextLedToggMicros;
+
+bool ledState = false;
 
 //init adcs
 Adafruit_ADS1115 ADCA;
@@ -58,12 +66,14 @@ void setup() {
 
   //init i2c shit
   ADCA.begin(0x48);  // Initialize ADC A at address 0x48
+  ADCA.setGain(GAIN_SIXTEEN);
   ADCB.begin(0x49);  // Initialize ADC B at address 0x49
+  ADCB.setGain(GAIN_SIXTEEN);
   
   //init can shit (500kbps, 16 MHZ)
   if(CAN0.begin(MCP_ANY, CAN_500KBPS, MCP_16MHZ) == CAN_OK) Serial.println("MCP2515 Initialized Successfully!");
   else Serial.println("Error Initializing MCP2515...");
-  CAN0.setMode(MCP_NORMAL);
+  CAN0.setMode(MCP_NORMAL);d
 
   //init i2c here
 
@@ -73,7 +83,11 @@ void setup() {
 
 void loop() {
   readLP();
-  readADCs();
+  readADCA();
+  readADCB();
+  readTireTemp();
+  readBrakeTemp();
+  toggLED();
 }
 
 //when its time has come: read linpot
@@ -81,24 +95,47 @@ void readLP() {
   if (micros() < nextLPMicros) return;
   
   //get data
-  int anaOut = analogRead(LIN_POT_PIN);
-  sendMsgBuf(CAN_ID_FRAME + CAN_ID_LIN_POT, 1, 8, {(byte)(anaOut), (byte)(anaOut >> 8), (byte)(anaOut >> 16), (byte)(anaOut >> 24), 0, 0, 0, 0}}
+  int16_t anaOut = analogRead(LIN_POT_PIN);
+  sendMsgBuf(CAN_ID_FRAME + CAN_ID_LIN_POT, 1, 8, 
+            {(byte)(anaOut), (byte)(anaOut >> 8), 
+            (byte)(anaOut >> 16), 0, 0, 0, 0, 0}}
 
   nextLPMicros += LIN_POT_READ_INT;
 }
 
-void readADCs() {
-  readADCA();
-  readADCB();
-}
-
+//read from the 2 ADCs which have 3 strain gauges each
 void readADCA() {
-  int16_t out;
+  if (micros() < nextSGMicros) return;
+  int16_t SGA0 = ADCA.readADC_Differential_0_3();
+  int16_t SGA1 = ADCA.readADC_Differential_1_3();
+  int16_t SGA2 = ADCA.readADC_Differential_2_3();
   
-  out = ADCA.readADC_Differential_0_3();
+  int8_t[8] out = {(byte)(SGA0), (byte)(SGA0 >> 8), (byte)(SGA1), (byte)(SGA1 >> 8), 
+                  (byte)(SGA2), (byte)(SGA2 >> 8), 0, 0} 
   
+  sendMsgBuf(CAN_ID_FRAME + CAN_ID_ADCA, 1, 8, out}
 }
-
 void readADCB() {
+  if (micros() < nextSGMicros) return;
+  int16_t SGB0 = ADCB.readADC_Differential_0_3();
+  int16_t SGB1 = ADCB.readADC_Differential_1_3();
+  int16_t SGB2 = ADCB.readADC_Differential_2_3();
+  
+  int8_t[8] out = {(byte)(SGB0), (byte)(SGB0 >> 8), (byte)(SGA1), (byte)(SGB1 >> 8), 
+                  (byte)(SGB2), (byte)(SGB2 >> 8), 0, 0} 
+  
+  sendMsgBuf(CAN_ID_FRAME + CAN_ID_ADCB, 1, 8, out}
+ }
 
+void toggLED() 
+  if (micros() < nextToggMicros) return;
+  
+  if (ledState) digitalWrite(BLINK_LED_PIN, LOW);
+  else digitalWrite(BLINK_LED_PIN, HIGH);
+
+  ledState = !ledState;
 }
+ void readTireTemp() {
+ }
+ void readTireTemp() {
+ }
