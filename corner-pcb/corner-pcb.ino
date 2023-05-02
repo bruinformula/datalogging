@@ -36,7 +36,7 @@ Adafruit_ADS1115 ADCB;
 //send data array
 uint8_t canMsg[8];
 
-MCP_CAN CAN0(10);     // Declare CAN controller
+MCP_CAN CAN0(9);     // Declare CAN controller
 
 void setup() {
 
@@ -49,7 +49,7 @@ void setup() {
 
 
   //init i2c shit
-  ADCA.begin(ADCA_ADDR);  // Initialize ADC A at address 0x48
+  ADCA.begin(ADCA_ADDR);  // Initialize ADC A at address 0x48 
   ADCA.setGain(GAIN_SIXTEEN);
   ADCB.begin(ADCB_ADDR);  // Initialize ADC B at address 0x49
   ADCB.setGain(GAIN_SIXTEEN);
@@ -83,7 +83,7 @@ void readLP() {
   uint16_t anaOut = analogRead(LIN_POT_PIN);
   Serial.print(F("Reading Linear Potentiometer: "));
   Serial.println(anaOut);
-  
+
   Serial.print(F("Sending over CAN: "));
   uint8_t msg[8] = {(byte)(anaOut), (byte)(anaOut >> 8), (byte)(anaOut >> 16), 0, 0, 0, 0, 0};
   uint8_t canResult = CAN0.sendMsgBuf(CAN_ID_FRAME + CAN_ID_LIN_POT, 1, 8, msg);
