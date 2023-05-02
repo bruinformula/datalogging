@@ -12,7 +12,6 @@
 #include <stdint.h>
 #include <Arduino.h>
 #include <Wire.h>
-#include <wiring.h>
 
 //CAN shit
 #include <mcp_can.h>
@@ -21,9 +20,8 @@
 //device specific shit
 #include <Adafruit_ADS1X15.h>
 
-//sylers i2c lib cause hes cool like that
-//#include whatever the new i2c library is
-#include 
+//randall's i2c lib cause hes cool like that
+#include "mlx90640.hpp"
 
 /*                 ***CAN ID CONSTNATS INFO***
  * id of pcb: 0x[XXXX][#]C0
@@ -52,33 +50,46 @@ bool ledState = false;
 Adafruit_ADS1115 ADCA;
 Adafruit_ADS1115 ADCB;
 
+//init can object
+MCP_CAN CAN(10);
+
 //send data array
 uint8_t canMsg[8];
 
 void setup() {
+  Serial.begin(9600);
+  Serial.println("Good morning, folks. Quick preflight checks:");
   //light that says "hi im working + initializing + booting (silly LED on the right of mcu)
   digitalWrite(BLINK_LED_PIN, HIGH);
   pinMode(BLINK_LED_PIN, OUTPUT);
-  Serial.begin(9600);
+  
 
   //init lin pot
   pinMode(LIN_POT_PIN, INPUT);
 
-  //init i2c shit
-  ADCA.begin(0x48);  // Initialize ADC A at address 0x48
+  //init ADC shit
+  Serial.println("\n Initializing ADCA: ... ");
+  Serial.println(ADCA.begin(0x48) ? "Complete." : "FAILED");  // Initialize ADC A at address 0x48
   ADCA.setGain(GAIN_SIXTEEN);
-  ADCB.begin(0x49);  // Initialize ADC B at address 0x49
+  Serial.println("Initializing ADCB: ... ");
+  Serial.println(ADCB.begin(0x49) ? "Complete." : "FAILED");  // Initialize ADC B at address 0x49
   ADCB.setGain(GAIN_SIXTEEN);
+  Serial.println("ADC Initialization complete.");
+
+  //init ir sensor shit
+  Serial.println("Starting up the MLX...");
+  Serial.println(MLX90640_init() ? "...Succeeded!" : "...Failed!");
   
   //init can shit (500kbps, 16 MHZ)
-  if(CAN0.begin(MCP_ANY, CAN_500KBPS, MCP_16MHZ) == CAN_OK) Serial.println("MCP2515 Initialized Successfully!");
+  Serial.println("Booting up CAN bus...");
+  if(CAN.begin(MCP_ANY, CAN_500KBPS, MCP_16MHZ) == CAN_OK) Serial.println("Booted successfully!");
   else Serial.println("Error Initializing MCP2515...");
-  CAN0.setMode(MCP_NORMAL);d
+  CAN.setMode(MCP_NORMAL);
 
-  //init i2c here
 
   //ok done initializing w
   digitalWrite(BLINK_LED_PIN, LOW);
+  Serial.println("This concludes our preflight checks. Welcome aboard!");
 }
 
 void loop() {
@@ -135,7 +146,21 @@ void toggLED()
 
   ledState = !ledState;
 }
- void readTireTemp() {
- }
- void readTireTemp() {
- }
+void readTireTemp() {
+  
+}
+
+void readBrakeTemp() {
+  
+}
+
+//helper method for readTireTemp and readBrakeTemp
+void printEightBytes(uint8_t* block) {
+  for (int i = 0; i < 8; i++) {
+    if (block[i] < 0x10) {
+      Serial.print("0");
+    }
+    Serial.print(block[i], HEX);
+  }
+  Serial.println();
+}
