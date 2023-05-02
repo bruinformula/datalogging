@@ -16,13 +16,12 @@
 #define ADCB_ADDR 0x49
 
 /*                 ***CAN ID CONSTNATS INFO***
- * id of pcb: 0x[XXXX][#]C0
+ * id of pcb: 0xC[#]0[XXXX]
  * C0: IDs board as a corner PCB
  * [#]: 1/2/3/4 for which # corner PCB it is
  * [XXXX]: 4 digits to ID what kind of sensor readout it is
  * C0 is front left C1 is front right C2 is rear right C3 is rear left
  */
-#define CAN_ID_FRAME      0xC000000
 #define CAN_ID_LIN_POT    0x0001000
 #define CAN_ID_ADCA       0x0002000
 #define CAN_ID_ADCB       0x0003000

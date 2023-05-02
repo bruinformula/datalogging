@@ -1,9 +1,6 @@
-/*
- * to add:::
- * 
- * sht pants case for each read method
- */
-
+// 0xC000000, 0xC100000, 0xC200000, or 0xC300000 depending on which PCB it is
+// 0 is front left, 1 is front right, 2 is back right, 3 is back left
+#define CAN_ID_FRAME      0xC000000
 
 //costnats r probalby inportant
 #include "constants.h"
@@ -17,7 +14,7 @@
 #include <mcp_can.h>
 #include <SPI.h>
 
-//device specific shit
+//adcs for strain gauges
 #include <Adafruit_ADS1X15.h>
 
 //next time reads should be read (in microseconds)
@@ -27,7 +24,7 @@ uint32_t nextBrkTempMicros;
 uint32_t nextTireTempMicros;
 uint32_t nextToggMicros;
 
-bool ledState = false;
+bool ledState;
 
 //init adcs
 Adafruit_ADS1115 ADCA;
@@ -45,7 +42,7 @@ void setup() {
   //init lin pot
   pinMode(LIN_POT_PIN, INPUT);
 
-  Serial.begin(9600);
+  Serial.begin(115200);
 
 
   //init i2c shit
@@ -85,7 +82,7 @@ void readLP() {
   Serial.println(anaOut);
 
   Serial.print(F("Sending over CAN: "));
-  uint8_t msg[8] = {(byte)(anaOut), (byte)(anaOut >> 8), (byte)(anaOut >> 16), 0, 0, 0, 0, 0};
+  uint8_t msg[8] = {(byte)(anaOut >> 16),(byte)(anaOut >> 8),  (byte)(anaOut), 0, 0, 0, 0, 0};
   uint8_t canResult = CAN0.sendMsgBuf(CAN_ID_FRAME + CAN_ID_LIN_POT, 1, 8, msg);
   Serial.println(canResult);
 
@@ -99,8 +96,8 @@ void readSGs() {
   int16_t SGA1 = ADCA.readADC_Differential_1_3();
   int16_t SGA2 = ADCA.readADC_Differential_2_3();
   
-  int8_t msgA[8] = {(byte)(SGA0), (byte)(SGA0 >> 8), (byte)(SGA1), (byte)(SGA1 >> 8), 
-                  (byte)(SGA2), (byte)(SGA2 >> 8), 0, 0};
+  int8_t msgA[8] = {(byte)(SGA0 >> 8), (byte)(SGA0),(byte)(SGA1 >> 8),  (byte)(SGA1), 
+                  (byte)(SGA2 >> 8), (byte)(SGA2), 0, 0};
   
   CAN0.sendMsgBuf(CAN_ID_FRAME + CAN_ID_ADCA, 1, 8, msgA);
 
@@ -108,8 +105,8 @@ void readSGs() {
   int16_t SGB1 = ADCB.readADC_Differential_1_3();
   int16_t SGB2 = ADCB.readADC_Differential_2_3();
   
-  int8_t msgB[8] = {(byte)(SGB0), (byte)(SGB0 >> 8), (byte)(SGB1), (byte)(SGB1 >> 8), 
-                  (byte)(SGB2), (byte)(SGB2 >> 8), 0, 0};
+  int8_t msgB[8] = {(byte)(SGB0 >> 8), (byte)(SGB0),(byte)(SGB1 >> 8),  (byte)(SGB1), 
+                  (byte)(SGB2 >> 8), (byte)(SGB2), 0, 0};
   
   CAN0.sendMsgBuf(CAN_ID_FRAME + CAN_ID_ADCB, 1, 8, msgB);
 
@@ -134,5 +131,3 @@ void toggLED(){
  }
  void readBrakeTemp() {
  }
- void readADCA(){}
- void readADCB(){}
