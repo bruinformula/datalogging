@@ -1,6 +1,16 @@
 // 0xC000000, 0xC100000, 0xC200000, or 0xC300000 depending on which PCB it is
-// 0 is front left, 1 is front right, 2 is back right, 3 is back left
-#define CAN_ID_FRAME      0xC000000
+// 0 is front right, 1 is front left, 2 is back left, 3 is back right
+#define BOARD_INDEX 0
+
+#if BOARD_INDEX == 0
+  #define CAN_ID_FRAME      0xC000000
+#elif BOARD_INDEX == 1
+  #define CAN_ID_FRAME      0xC100000
+#elif BOARD_INDEX == 2
+  #define CAN_ID_FRAME      0xC200000
+#else
+  #define CAN_ID_FRAME      0xC300000
+#endif
 
 //costnats r probalby inportant
 #include "constants.h"
@@ -82,7 +92,7 @@ void readLP() {
   Serial.println(anaOut);
 
   Serial.print(F("Sending over CAN: "));
-  uint8_t msg[8] = {(byte)(anaOut >> 16),(byte)(anaOut >> 8),  (byte)(anaOut), 0, 0, 0, 0, 0};
+  uint8_t msg[8] = {(uint8_t)(anaOut >> 8), (uint8_t)(anaOut), 0, 0, 0, 0, 0, 0};
   uint8_t canResult = CAN0.sendMsgBuf(CAN_ID_FRAME + CAN_ID_LIN_POT, 1, 8, msg);
   Serial.println(canResult);
 
@@ -96,8 +106,8 @@ void readSGs() {
   int16_t SGA1 = ADCA.readADC_Differential_1_3();
   int16_t SGA2 = ADCA.readADC_Differential_2_3();
   
-  int8_t msgA[8] = {(byte)(SGA0 >> 8), (byte)(SGA0),(byte)(SGA1 >> 8),  (byte)(SGA1), 
-                  (byte)(SGA2 >> 8), (byte)(SGA2), 0, 0};
+  uint8_t msgA[8] = {(uint8_t)(SGA0 >> 8), (uint8_t)(SGA0),(uint8_t)(SGA1 >> 8),  (uint8_t)(SGA1), 
+                  (uint8_t)(SGA2 >> 8), (uint8_t)(SGA2), 0, 0};
   
   CAN0.sendMsgBuf(CAN_ID_FRAME + CAN_ID_ADCA, 1, 8, msgA);
 
@@ -105,8 +115,8 @@ void readSGs() {
   int16_t SGB1 = ADCB.readADC_Differential_1_3();
   int16_t SGB2 = ADCB.readADC_Differential_2_3();
   
-  int8_t msgB[8] = {(byte)(SGB0 >> 8), (byte)(SGB0),(byte)(SGB1 >> 8),  (byte)(SGB1), 
-                  (byte)(SGB2 >> 8), (byte)(SGB2), 0, 0};
+  uint8_t msgB[8] = {(uint8_t)(SGB0 >> 8), (uint8_t)(SGB0),(uint8_t)(SGB1 >> 8),  (uint8_t)(SGB1), 
+                  (uint8_t)(SGB2 >> 8), (uint8_t)(SGB2), 0, 0};
   
   CAN0.sendMsgBuf(CAN_ID_FRAME + CAN_ID_ADCB, 1, 8, msgB);
 
