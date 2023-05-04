@@ -21,6 +21,10 @@
 // shift light strip library
 #include <Adafruit_NeoPixel.h>
 
+// interrupt and avr libs
+#include <avr/io.h>
+#include <avr/interrupt.h>
+
 #define LOG_DATA_TO_SERIAL
 #define LOG_VERSION 3
 
@@ -58,14 +62,15 @@ uint32_t next_shift_light_frame_micros;
 uint32_t next_status_micros;
 uint32_t next_egt_micros;
 uint32_t next_flush_micros;
+uint32_t next_shift_update_time_micros;           
+
 
 // timings & state vars for shifting
-uint32_t next_shift_update_time_micros;
-uint32_t pneumatic_state_change_micros;
-uint32_t next_allowed_shift_micros;
-uint32_t upshiftLastStates = 0x0; // revert to uint_64
-uint32_t downshiftLastStates = 0x0; // revert to uint_64
-uint8_t shiftDirection;
+volatile uint32_t pneumatic_state_change_micros;  // when we turn of pneumatic/flatshift after starting
+volatile uint32_t next_allowed_shift_micros;      // time we spend blocking next shift
+volatile uint32_t upshift_delay_micros;           // when we allow upshift to physically begin
+volatile int8_t shiftState;                       // track state of shifter system
+volatile uint8_t desiredGear;                     // desired gear to shift to
 
 // for shift light color control
 uint32_t color_red, color_green, color_blue, color_yellow, color_white, color_purple;
@@ -165,16 +170,19 @@ void setup(void) {
   Serial8.begin(9600); // to ESP8266 Telemetry
 
   // setup shifting and set default state
-  pinMode(FWD_PIN, OUTPUT);
-  pinMode(RVS_PIN, OUTPUT);
-  pinMode(FLATSHIFT_PIN, OUTPUT);
-  pinMode(UPSHIFT_PIN, INPUT_PULLUP);
-  pinMode(DOWNSHIFT_PIN, INPUT_PULLUP);
-  pinMode(WHEEL_SPARE_PIN, OUTPUT);
-  digitalWrite(WHEEL_SPARE_PIN, LOW);
+  pinMode(UPSHIFT_PIN, INPUT_PULLUP);                       // upshift paddle
+  pinMode(DOWNSHIFT_PIN, INPUT_PULLUP);                     // downshift paddle
+  pinMode(FWD_PIN, OUTPUT);                                 // solenoid FWD pin
+  pinMode(RVS_PIN, OUTPUT);                                 // solenoid RVSS pin
+  pinMode(FLATSHIFT_PIN, OUTPUT);                           // ecu "Shift Switch" pin
+  pinMode(WHEEL_SPARE_PIN, OUTPUT);                         // spare input pin on wheel
+  digitalWrite(WHEEL_SPARE_PIN, LOW);                       // use spare input pin as a ground
+  attachInterrupt(UPSHIFT_PIN, upshiftStart, FALLING);      // triggers upshift
+  attachInterrupt(UPSHIFT_PIN, shiftTimerReset, RISING);    // resets upshift paddle timer
+  attachInterrupt(DOWNSHIFT_PIN, downshiftStart, FALLING);  // triggers downshift
+  attachInterrupt(DOWNSHIFT_PIN, shiftTimerReset, RISING);  // resets downshift paddle timers
   
   delay(200);
-
 }
 
 void loop(void) {
@@ -622,43 +630,101 @@ void update_shift_lights(){
 
 void shift() {
   if(micros() > next_shift_update_time_micros) {
-    bool upshiftPaddle = !digitalRead(UPSHIFT_PIN);
-    bool downshiftPaddle = !digitalRead(DOWNSHIFT_PIN);
-    
-    // update state by shifting over bit array and adding latest state
-    upshiftLastStates = (upshiftLastStates << 1) + upshiftPaddle;
-    downshiftLastStates = (downshiftLastStates << 1) + downshiftPaddle;
+    resetPneumatics();
 
-    // require at least 59 cycles (59ms off paddle to shift again) & allowed shift time
-    if (micros() > next_allowed_shift_micros && !(upshiftLastStates >> 5)  && !(downshiftLastStates >> 5)) {
-      // currently do nothing if both pressed (will change for neutral behavior once switch implemented)
-      // debounce by 5 latest values (5ms)
-      if (((upshiftLastStates & 0x1F) == 0x1F) ^ ((downshiftLastStates & 0x1F) == 0x1F)) {
-        if (upshiftPaddle) {
+    switch(shiftState) {
+      case SHF_IDLE:
+        log_pair("SHF", 0);
+        break;
+      case DOWNSHIFTING:
+        log_pair("SHF", -desiredGear);
+        break;
+      case UPSHIFTSTART:
+        if (micros() > upshift_delay_micros) {
           digitalWrite(FWD_PIN, HIGH);
-          digitalWrite(FLATSHIFT_PIN, HIGH);
-          log_pair("SHF", gear+1);
-        } 
-        else if (downshiftPaddle) {
-          digitalWrite(RVS_PIN, HIGH);
-          if(gear == 1) log_pair("SHF", -1);
-          else log_pair("SHF", -(gear-1));
+          shiftState = UPSHIFTING;
         }
-        pneumatic_state_change_micros = micros() + SHIFT_PNEUMATIC_TIME;
-        next_allowed_shift_micros = micros() + SHIFT_PAUSE_TIME;
-      }
-    } else {
-      log_pair("SHF", 0);
-    }
-
-
-    // reset all pins to low after shifting executed
-    if (micros() > pneumatic_state_change_micros) {
-      digitalWrite(FWD_PIN, LOW);
-      digitalWrite(RVS_PIN, LOW);
-      digitalWrite(FLATSHIFT_PIN, LOW);
+      case UPSHIFTING:
+        log_pair("SHF", desiredGear);
+        break;
+      case SHF_NEUTRAL: 
+        log_pair("SHF", 6);
+        if (gear == 0) resetPneumatics(); // preemptively reset pneumatics so we don't overshoot and end up in gear
+        break;
     }
 
     next_shift_update_time_micros = micros() + SHIFT_UPDATE_INCR;
+  }
+}
+
+void upshiftStart() {
+  if (micros() > next_allowed_shift_micros) {
+    desiredGear = gear + 1;
+    
+    // block shifting past 5th
+    if (desiredGear > 5) {
+      return;           // do nothing (prevents damage to gearbox)  
+      // may need to change depending off the shift activates while gear state is counted as 7 (between gears)
+    } 
+    
+    // shift N->1
+    else if (desiredGear == 1) {
+      shiftState = UPSHIFTSTART;
+      log_pair("SHF", desiredGear);
+    } 
+    
+    // upshift & signal flatshift
+    else {
+        digitalWrite(FLATSHIFT_PIN, HIGH);
+        shiftState = UPSHIFTSTART;
+        log_pair("SHF", desiredGear);
+    }
+
+    pneumatic_state_change_micros = micros() + UPSHIFT_DELAY_TIME[gear] + UPSHIFT_PNEUMATIC_TIME[gear]; // time when we deactivate both flatshift signal & solenoid
+    upshift_delay_micros = micros() + UPSHIFT_DELAY_TIME[gear];                                         // when we actually actuate the upshift
+    next_allowed_shift_micros = micros() + UPSHIFT_PAUSE_TIME;                                          // delay time until next shift allowed
+  }
+}
+
+void downshiftStart() {
+  if (micros() > next_allowed_shift_micros) {
+    desiredGear = gear - 1;
+
+    // block downshifting into 1st (handled by upshifting N->1 see above)
+    if (desiredGear < 0) {
+      return;           // do nothing (this would just shift us into gear, when not desired)
+    }
+
+    // shift 1->N
+    if (desiredGear == 0) {
+      digitalWrite(FWD_PIN, HIGH);
+      shiftState = SHF_NEUTRAL;
+      log_pair("SHF", 6); // neutral shows up in logs as 6, to distinguish it from idle state
+    }
+
+    // downshift
+    else {
+      digitalWrite(RVS_PIN, HIGH);
+      shiftState = DOWNSHIFTING;
+      log_pair("SHF", -desiredGear);
+    }
+
+    pneumatic_state_change_micros = micros() + DOWNSHIFT_PNEUMATIC_TIME[desiredGear]; // when we turn off the pins after shifting
+    next_allowed_shift_micros = micros() + DOWNSHIFT_PAUSE_TIME;                      // delay time until next shift allowed
+  }
+}
+
+void shiftTimerReset() {
+  if (micros() > next_allowed_shift_micros)
+    next_allowed_shift_micros = micros() + 2000;
+}
+
+void resetPneumatics() {
+  // reset all pins to low after shifting executed
+  if (micros() > pneumatic_state_change_micros) {
+    digitalWrite(FWD_PIN, LOW);
+    digitalWrite(RVS_PIN, LOW);
+    digitalWrite(FLATSHIFT_PIN, LOW);
+    shiftState = SHF_IDLE;
   }
 }
