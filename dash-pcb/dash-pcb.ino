@@ -25,7 +25,7 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
-#define LOG_DATA_TO_SERIAL
+//#define LOG_DATA_TO_SERIAL
 #define LOG_VERSION 3
 
 // The I2C device. Determines which pins we use on the Teensy.
@@ -66,11 +66,13 @@ uint32_t next_shift_update_time_micros;
 
 
 // timings & state vars for shifting
-volatile uint32_t pneumatic_state_change_micros;  // when we turn of pneumatic/flatshift after starting
-volatile uint32_t next_allowed_shift_micros;      // time we spend blocking next shift
-volatile uint32_t upshift_delay_micros;           // when we allow upshift to physically begin
-volatile int8_t shiftState;                       // track state of shifter system
-volatile uint8_t desiredGear;                     // desired gear to shift to
+uint32_t pneumatic_state_change_micros;   // when we turn of pneumatic/flatshift after starting
+uint32_t next_allowed_shift_micros;       // when we allow next shift to be executed after shift
+uint32_t upshift_delay_micros;            // when we allow upshift to physically begin
+int8_t shiftState;                        // track state of shifter system
+int8_t desiredGear;                       // desired gear to shift to
+uint8_t upshiftPrev;                      // previous upshift paddle state
+uint8_t downshiftPrev;                    // previous downshift paddle state
 
 // for shift light color control
 uint32_t color_red, color_green, color_blue, color_yellow, color_white, color_purple;
@@ -177,10 +179,6 @@ void setup(void) {
   pinMode(FLATSHIFT_PIN, OUTPUT);                           // ecu "Shift Switch" pin
   pinMode(WHEEL_SPARE_PIN, OUTPUT);                         // spare input pin on wheel
   digitalWrite(WHEEL_SPARE_PIN, LOW);                       // use spare input pin as a ground
-  attachInterrupt(UPSHIFT_PIN, upshiftStart, FALLING);      // triggers upshift
-  attachInterrupt(UPSHIFT_PIN, shiftTimerReset, RISING);    // resets upshift paddle timer
-  attachInterrupt(DOWNSHIFT_PIN, downshiftStart, FALLING);  // triggers downshift
-  attachInterrupt(DOWNSHIFT_PIN, shiftTimerReset, RISING);  // resets downshift paddle timers
   
   delay(200);
 }
@@ -188,7 +186,7 @@ void setup(void) {
 void loop(void) {
   read_3463();
   read_CAN();
-  //read_A1();
+  resetPneumatics();
   read_EGT();
   wireless_tele();
   send_log_status();
@@ -464,17 +462,6 @@ void read_CAN(){
   }
 }
 
-//Read pin A1, connected to EGT, log it, and prepare it to be sent with telemetry
-void read_A1(){
-  
-  if(micros() > next_analog_read_micros){
-    tele_data_1B[6] = analogRead(A1);
-    log_pair("A1", String(tele_data_1B[6]));
-    next_analog_read_micros = micros() + ANALOG_READ_MICROS_INCR;
-  }
-  
-}
-
 //log message like "s1,micros,s2\n"
 void log_pair(String s1, String s2){
   log_file.print(s1);
@@ -630,8 +617,12 @@ void update_shift_lights(){
 
 void shift() {
   if(micros() > next_shift_update_time_micros) {
-    resetPneumatics();
-
+    uint8_t upshiftCurr = digitalRead(UPSHIFT_PIN);
+    uint8_t downshiftCurr = digitalRead(DOWNSHIFT_PIN);
+    
+    if (!upshiftCurr && upshiftPrev) upshiftStart(); // if upshift paddle pressed & debounce timer inactive
+    else if (!downshiftCurr && downshiftPrev) downshiftStart();  // if downshift paddle pressed & debounce timer inactive
+    
     switch(shiftState) {
       case SHF_IDLE:
         log_pair("SHF", 0);
@@ -651,11 +642,13 @@ void shift() {
         break;
       case SHF_NEUTRAL: 
         log_pair("SHF", 6);
-        if (gear == 0) resetPneumatics(); // preemptively reset pneumatics so we don't overshoot and end up in gear
         break;
     }
 
     next_shift_update_time_micros = micros() + SHIFT_UPDATE_INCR;
+
+    upshiftPrev = upshiftCurr;
+    downshiftPrev = downshiftCurr;
   }
 }
 
@@ -671,7 +664,8 @@ void upshiftStart() {
     
     // shift N->1
     else if (desiredGear == 1) {
-      shiftState = UPSHIFTSTART;
+      digitalWrite(RVS_PIN, HIGH);
+      shiftState = UPSHIFTING;
       log_pair("SHF", desiredGear);
     } 
     
@@ -711,19 +705,14 @@ void downshiftStart() {
       log_pair("SHF", -desiredGear);
     }
 
-    pneumatic_state_change_micros = micros() + DOWNSHIFT_PNEUMATIC_TIME[desiredGear]; // when we turn off the pins after shifting
-    next_allowed_shift_micros = micros() + DOWNSHIFT_PAUSE_TIME;                      // delay time until next shift allowed
+    pneumatic_state_change_micros = micros() + DOWNSHIFT_PNEUMATIC_TIME[desiredGear];     // when we turn off the pins after shifting
+    next_allowed_shift_micros = micros() + DOWNSHIFT_PAUSE_TIME;                          // delay time until next shift allowed
   }
-}
-
-void shiftTimerReset() {
-  if (micros() > next_allowed_shift_micros)
-    next_allowed_shift_micros = micros() + 2000;
 }
 
 void resetPneumatics() {
   // reset all pins to low after shifting executed
-  if (micros() > pneumatic_state_change_micros) {
+  if ((micros() > pneumatic_state_change_micros && shiftState != SHF_IDLE) || (gear == desiredGear)) {
     digitalWrite(FWD_PIN, LOW);
     digitalWrite(RVS_PIN, LOW);
     digitalWrite(FLATSHIFT_PIN, LOW);

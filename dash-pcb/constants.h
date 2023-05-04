@@ -21,9 +21,9 @@
 #define EGT_AMP_ADDR              0x67
 
 // Pin Definitions
-#define FWD_PIN           4       // forward solenoid
-#define RVS_PIN           5       // reverse solenoi
-#define FLATSHIFT_PIN     6       // flatshift pin
+#define FLATSHIFT_PIN     4       // flatshift pin
+#define RVS_PIN           5       // reverse solenoid
+#define FWD_PIN           6       // forward solenoid
 #define LED_PIN           13      // dash LEDs
 #define SHIFT_LIGHTS_PIN  14      // level translator for shift lights
 #define DOWNSHIFT_PIN     30      // downshift paddle
@@ -31,7 +31,7 @@
 #define WHEEL_SPARE_PIN   32      // spare wheel pin
 
 // Microseconds between each periodic function
-#define IMU_MICROS_INCR             1400  // how often IMU samples
+#define IMU_MICROS_INCR            50000  // how often IMU samples
 #define IMU_CHECK_MICROS_INCR     100000  // not used
 #define EGT_MICROS_INCR           100000  // how often the EGT samples
 #define SD_MICROS_INCR          10000000  // how often we force a flush to the SD card
@@ -43,7 +43,7 @@
 
 // timing for shifting
 const uint32_t UPSHIFT_PNEUMATIC_TIME[5] = {75000, 75000, 75000, 75000, 75000};         // per gear timing {N->1, 1->2, 2->3, 3->4, 4->5}
-const uint32_t DOWNSHIFT_PNEUMATIC_TIME[5] = {15000, 100000, 100000, 100000, 100000};   // per gear timing {1->N, 2->1, 3->2, 4->3, 5->4}
+const uint32_t DOWNSHIFT_PNEUMATIC_TIME[5] = {8420, 100000, 100000, 100000, 100000};    // per gear timing {1->N, 2->1, 3->2, 4->3, 5->4}
 const uint32_t UPSHIFT_DELAY_TIME[5] = {0, 0, 0, 0, 0};                                 // per gear delay {N->1, 1->2, 2->3, 3->4, 4->5}
 const uint32_t SHIFT_DEBOUNCE_TIME = 2000;      // debounce for button
 const uint32_t UPSHIFT_PAUSE_TIME = 200000;     // timing between paddle presses to avoid saturating the piston
