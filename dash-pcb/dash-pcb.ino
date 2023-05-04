@@ -644,6 +644,8 @@ void shift() {
           digitalWrite(FWD_PIN, HIGH);
           shiftState = UPSHIFTING;
         }
+        log_pair("SHF", desiredGear);
+        break;
       case UPSHIFTING:
         log_pair("SHF", desiredGear);
         break;
