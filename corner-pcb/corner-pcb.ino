@@ -48,6 +48,8 @@ void setup() {
   Serial.print(F("Starting Corner PCB "));
   Serial.println(BOARD_INDEX);
   
+  Wire.setClock( 400000UL);
+  
   pinMode(BLINK_LED_PIN, OUTPUT);
   //init lin pot
   pinMode(LIN_POT_PIN, INPUT);
@@ -155,7 +157,9 @@ void tireTempOverCAN(uint8_t* block) {
   #ifdef LOG_CAN
     Serial.println("Sending tire temp block over CAN...");
   #endif
-  CAN0.sendMsgBuf(CAN_ID_FRAME + CAN_ID_TIRE_DATA, 1, 8, block);
+  for(int block_offset = 0; block_offset < 64; block_offset += 8){
+    CAN0.sendMsgBuf(CAN_ID_FRAME + CAN_ID_TIRE_DATA, 1, 8, block + block_offset);
+  }
 }
 
  void readTireTemp() {
