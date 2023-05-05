@@ -9,6 +9,7 @@ void setup() {
   // put your setup code here, to run once:
   mySerial.begin(115200);
   Serial.begin(115200);
+  Serial.println("Reading");
 }
 
 void loop() {
