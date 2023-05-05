@@ -45,8 +45,7 @@ uint8_t SD_status = 1;
 uint32_t last_ecu_can_micros;
 
 //path to log file on sd card
-char log_name[] = {'X','X','X','X','/','l','o','g','.','c','s','v','\0'};
-char directory_name[] = {'X','X','X','X','\0'};
+char log_name[] = {'X','X','X','X','.','c','s','v','\0'};
 File log_file;
 
 //next time an action should be taken
@@ -89,13 +88,13 @@ void setup(void) {
   color_purple = strip.Color(70, 0, 12);
 
   strip.clear();
-  strip.setPixelColor(0, color_white);
-  strip.setPixelColor(1, color_white);
+  strip.setPixelColor(0, color_blue);
+  strip.setPixelColor(1, color_blue);
   strip.show();
 
   //Set up communication with plugged in laptop if there is one
   Serial.begin(115200);
-  strip.setPixelColor(2, color_white);
+  strip.setPixelColor(2, color_blue);
   strip.show();
 
   //Turn on on-board LED, wait for Serial
@@ -103,27 +102,27 @@ void setup(void) {
   digitalWrite(LED_PIN, HIGH);
 
   delay(200);
-  strip.setPixelColor(3, color_white);
-  strip.setPixelColor(4, color_white);
+  strip.setPixelColor(3, color_blue);
+  strip.setPixelColor(4, color_blue);
   
   Serial.println("---BEGIN---");
   Serial.println("");
 
-  strip.setPixelColor(5, color_white);
+  strip.setPixelColor(5, color_blue);
   strip.show();
   
   prep_SD();
   
-  strip.setPixelColor(6, SD_status>0 ? color_white : color_red);
-  strip.setPixelColor(7, SD_status>0 ? color_white : color_red);
+  strip.setPixelColor(6, SD_status>0 ? color_blue : color_red);
+  strip.setPixelColor(7, SD_status>0 ? color_blue : color_red);
   strip.show();
   
   //Initialize the CAN bus at 500kbps
   Serial.println("Initializing CAN bus...");
   can2.begin();
 
-  strip.setPixelColor(8, color_white);
-  strip.setPixelColor(9, color_white);
+  strip.setPixelColor(8, color_blue);
+  strip.setPixelColor(9, color_blue);
   strip.show();
 
   can2.setBaudRate(500000);
@@ -131,8 +130,8 @@ void setup(void) {
   log_pair("MSG", "CAN init done");
   log_file.flush();
   
-  strip.setPixelColor(10, color_white);
-  strip.setPixelColor(11, color_white);
+  strip.setPixelColor(10, color_blue);
+  strip.setPixelColor(11, color_blue);
   strip.show();
   
   // Initialise the I2C bus at 100kbps
@@ -141,15 +140,15 @@ void setup(void) {
   log_pair("MSG", "I2C init done");
   log_file.flush();
   
-  strip.setPixelColor(12, color_white);
-  strip.setPixelColor(13, color_white);
+  strip.setPixelColor(12, color_blue);
+  strip.setPixelColor(13, color_blue);
   strip.show();
   
   // Initialize accelerometer and gyroscope
   prep_3463();
   log_file.flush();
   
-  strip.setPixelColor(14, color_white);
+  strip.setPixelColor(14, color_blue);
   strip.show();
   
   Serial.println("Sending CAN message");
@@ -159,7 +158,7 @@ void setup(void) {
   msg.buf[1] = 13;
   can2.write(msg);
   
-  strip.setPixelColor(15, color_white);
+  strip.setPixelColor(15, color_blue);
   strip.show();
   
   Serial8.begin(9600); // to ESP8266 Telemetry
@@ -204,40 +203,34 @@ void prep_SD(){
 
   SD_status = 4;
   
-  Serial.println("Finding unused directory...");
+  Serial.println("Finding unused file...");
   // Set a, b, c, d to the first available 4 digits for a directory name
   for(int a = 0; a < 10; a++){
     for(int b = 0; b < 10; b++){
       for(int c = 0; c < 10; c++){
         for(int d = 0; d < 10; d++){
-          directory_name[0] = (char) (a + 48);
-          directory_name[1] = (char) (b + 48);
-          directory_name[2] = (char) (c + 48);
-          directory_name[3] = (char) (d + 48);
-          if(!SD.exists(directory_name)){
-            goto dirfound;
+          log_name[0] = (char) (a + 48);
+          log_name[1] = (char) (b + 48);
+          log_name[2] = (char) (c + 48);
+          log_name[3] = (char) (d + 48);
+          if(!SD.exists(log_name)){
+            goto filefound;
           }
         }
       }
     }
   }
-  Serial.println("ERROR: All possible directory names taken");
+  Serial.println("ERROR: All possible names taken");
   
-  dirfound:
-  //Set the name of the log file to include the chosen directory
-  log_name[0] = directory_name[0];
-  log_name[1] = directory_name[1];
-  log_name[2] = directory_name[2];
-  log_name[3] = directory_name[3];
-  SD.mkdir(directory_name);
+  filefound:
   
   log_file = SD.open(log_name, FILE_WRITE);
   Serial.print("Starting log file at ");
-  Serial.println(directory_name);
+  Serial.println(log_name);
   if(log_file){
     Serial.println("Log file started.");
     if(SD_status == 2) SD_status = 0;
-    log_pair("MSG", "DIRNAME:"+String(directory_name));
+    log_pair("LOGNAME", log_name);
   }else{
     Serial.println("Could not create log file.");
   }
@@ -556,8 +549,8 @@ void update_shift_lights(){
       //If gear is neutral, light up all lights white
       if(gear == 0){
         for(uint8_t i=0; i<16; i++){
-          //set to yellow if cranking, purple otherwise
-          strip.setPixelColor(i,(RPM > 50) ? color_yellow : color_purple);
+          //set to yellow if cranking, blue otherwise
+          strip.setPixelColor(i,(RPM > 50) ? color_yellow : color_white);
         }
       }
 
