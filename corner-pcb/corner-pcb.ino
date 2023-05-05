@@ -3,23 +3,13 @@
 #define BOARD_INDEX 2
 #define LOG_CAN
 
-#if BOARD_INDEX == 0
-  #define CAN_ID_FRAME      0xC000000
-#elif BOARD_INDEX == 1
-  #define CAN_ID_FRAME      0xC100000
-#elif BOARD_INDEX == 2
-  #define CAN_ID_FRAME      0xC200000
-#else
-  #define CAN_ID_FRAME      0xC300000
-#endif
+//costnats r probalby inportant
+#include "constants.h"
 
 // custom mlx90640 low-memory code
 #include "mlx90640.hpp"
 
-//costnats r probalby inportant
-#include "constants.h"
-
-//stadrad shit
+//stadard shit
 #include <stdint.h>
 #include <Arduino.h>
 #include <Wire.h>

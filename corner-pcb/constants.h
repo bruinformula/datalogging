@@ -1,5 +1,10 @@
 #pragma once
 
+//stadard shit
+#include <stdint.h>
+#include <Arduino.h>
+#include <Wire.h>
+
 //pin shit
 #define LIN_POT_PIN A0
 #define BLINK_LED_PIN 2
@@ -14,8 +19,8 @@ union CAN_msg_data{
 #define LIN_POT_READ_INT    50000
 #define SG_READ_INT         42069
 #define BRK_TEMP_READ_INT   50000
-#define TIRE_TEMP_READ_INT  1000000
-#define BLINK_LED_INT       1000000
+#define TIRE_TEMP_READ_INT  2000000
+#define BLINK_LED_INT       500000
 
 #define ADCA_ADDR 0x48
 #define ADCB_ADDR 0x49
@@ -27,6 +32,17 @@ union CAN_msg_data{
  * [XXXX]: 4 digits to ID what kind of sensor readout it is
  * C0 is front left C1 is front right C2 is rear right C3 is rear left
  */
+
+#if BOARD_INDEX == 0
+  #define CAN_ID_FRAME      0xC000000
+#elif BOARD_INDEX == 1
+  #define CAN_ID_FRAME      0xC100000
+#elif BOARD_INDEX == 2
+  #define CAN_ID_FRAME      0xC200000
+#else
+  #define CAN_ID_FRAME      0xC300000
+#endif
+
 #define CAN_ID_LIN_POT    0x0001000
 #define CAN_ID_ADCA       0x0002000
 #define CAN_ID_ADCB       0x0003000
