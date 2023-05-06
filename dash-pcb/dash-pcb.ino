@@ -25,7 +25,7 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
-//#define LOG_DATA_TO_SERIAL
+#define LOG_DATA_TO_SERIAL
 #define LOG_VERSION 3
 
 // The I2C device. Determines which pins we use on the Teensy.
@@ -618,7 +618,7 @@ void shift() {
     
     switch(shiftState) {
       case SHF_IDLE:
-        log_pair("SHF", 0);
+        //log_pair("SHF", 0);
         break;
       case DOWNSHIFTING:
         log_pair("SHF", -desiredGear);
