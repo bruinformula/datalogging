@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <stdint.h>
+#include <SoftwareSerial.h>
 
 // Adddresses for various registers
 #define ACC_MAG_WHOAMI_REG        0x0D
@@ -40,6 +41,10 @@
 #define SHIFT_LIGHT_MICROS_INCR    30000  // how often the shift light updates
 #define STATUS_MICROS_INCR       1000000  // how often send dash PCB status to CANbus
 #define SHIFT_UPDATE_INCR           1000  // how often shifter checks if it needs to change state
+#define GPS_MICROS_INCR          1000000  // how often GPS data is logged
+
+//GPS serial port
+#define gpsSerial Serial4
 
 // timing for shifting
 const uint32_t UPSHIFT_PNEUMATIC_TIME[5] = {75000, 75000, 75000, 75000, 75000};         // per gear timing {N->1, 1->2, 2->3, 3->4, 4->5}
