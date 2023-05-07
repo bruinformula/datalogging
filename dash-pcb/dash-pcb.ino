@@ -25,6 +25,11 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
+//GPS libraries
+#include <TinyGPS.h>
+#include <SoftwareSerial.h>
+#include <TimeLib.h>
+
 #define LOG_DATA_TO_SERIAL
 #define LOG_VERSION 3
 
@@ -34,6 +39,12 @@ I2CMaster& master = Master2;
 I2CDevice acc_mag = I2CDevice(master, ACC_MAG_ADDR, _BIG_ENDIAN);
 I2CDevice gyr = I2CDevice(master, GYR_ADDR, _BIG_ENDIAN);
 I2CDevice egt_amp = I2CDevice(master, EGT_AMP_ADDR, _BIG_ENDIAN);
+
+//GPS objects
+TinyGPS gps;
+String newNMEA = "";
+String GPGGANMEA = "";
+String GPRMCNMEA = "";
 
 int tele_data_1B[15]; // intList: ACCX, ACCY, ACCZ, GYRX, GYRY, GYRZ, exTemp(C), intakeTemp(C), coolantTemp(C), lambda1, dbtdc, fpr, to2, injduty
 int tele_data_2B[5][2]; // list for 2-byte data: engineSpeed(RPM), engineLoad(%), throttle(%), MAP(kPa), V_BAT
@@ -62,6 +73,7 @@ uint32_t next_status_micros;
 uint32_t next_egt_micros;
 uint32_t next_flush_micros;
 uint32_t next_shift_update_time_micros;           
+uint32_t next_gps_micros;
 
 
 // timings & state vars for shifting
@@ -179,6 +191,9 @@ void setup(void) {
   pinMode(WHEEL_SPARE_PIN, OUTPUT);                         // spare input pin on wheel
   digitalWrite(WHEEL_SPARE_PIN, LOW);                       // use spare input pin as a ground
   
+  //Set up GPS
+  gpsSerial.begin(9600);
+
   delay(200);
 }
 
@@ -187,6 +202,7 @@ void loop(void) {
   read_CAN();
   resetPneumatics();
   read_EGT();
+  read_GPS();
   wireless_tele();
   send_log_status();
   read_CAN();
@@ -720,5 +736,56 @@ void resetPneumatics() {
     digitalWrite(RVS_PIN, LOW);
     digitalWrite(FLATSHIFT_PIN, LOW);
     shiftState = SHF_IDLE;
+  }
+}
+
+void read_GPS() {
+  //Parse GPS data if received
+  while (gpsSerial.available()) {
+    char c = gpsSerial.read();
+    newNMEA += c; //Build NMEA string
+    if (gps.encode(c)) //True if new sentence
+    {
+      //Parse for NMEA Variants
+      int GPGGAindex = newNMEA.lastIndexOf("$GPGGA");
+      int GPGGAend = newNMEA.indexOf("$", GPGGAindex + 1);
+      if(GPGGAindex != -1){
+        GPGGANMEA = newNMEA.substring(GPGGAindex,GPGGAend - 1);
+      }
+      int GPRMCindex = newNMEA.lastIndexOf("$GPRMC");
+      int GPRMCend = newNMEA.indexOf("$", GPRMCindex + 1);
+      if(GPRMCindex != -1){
+        GPRMCNMEA = newNMEA.substring(GPRMCindex,GPRMCend - 1);
+      }
+      newNMEA = "";  
+    }
+    if(newNMEA.length() > 4000)
+    {
+      newNMEA.remove(0,2000); //Removes characters to keep newNMEA from growing when there's no fix
+    }
+  }
+
+  if(micros() > next_gps_micros) {
+    //Prepare variable to turn into epoch time
+    int year;
+    uint8_t month, day, hour, minutes, seconds, hundredths;
+    unsigned long int age;
+    gps.crack_datetime(&year, &month, &day, &hour, &minutes, &seconds, &hundredths, &age);
+    TimeElements t;
+    t.Year = year-1970;
+    t.Month = month;
+    t.Day = day;
+    t.Hour = hour;
+    t.Minute = minutes;
+    t.Second = seconds;
+    if(GPGGANMEA != "" && GPRMCNMEA != "")
+    {
+      //Log NMEA string and epoch time
+      log_pair("GPGGA NMEA", GPGGANMEA);
+      log_pair("GPRMC NMEA", GPRMCNMEA);
+      log_pair("Time", makeTime(t));
+    }
+
+    next_gps_micros = micros() + GPS_MICROS_INCR;
   }
 }
