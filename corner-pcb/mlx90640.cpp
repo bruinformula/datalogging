@@ -76,6 +76,7 @@ int MLX90640_dumpFrameData(block_stream dump) {
   }
   MLX90640_I2CRead(0x800D, frame_buffer, 2);
   MLX90640_I2CRead(0x8000, frame_buffer + 2, 2);
+  dump(frame_buffer);
 
   // reset data-ready bit
   reg = reg & 0xf7ff;

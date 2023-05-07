@@ -16,7 +16,7 @@ union CAN_msg_data{
 
 
 //sensor read interval shit
-#define LIN_POT_READ_INT    50000
+#define LIN_POT_READ_INT    10000
 #define SG_READ_INT         42069
 #define BRK_TEMP_READ_INT   50000
 #define TIRE_TEMP_READ_INT  2000000

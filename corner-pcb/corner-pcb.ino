@@ -1,7 +1,9 @@
 // 0xC000000, 0xC100000, 0xC200000, or 0xC300000 depending on which PCB it is
 // 0 is front right, 1 is front left, 2 is back left, 3 is back right
-#define BOARD_INDEX 2
+#define BOARD_INDEX 3
 //#define LOG_CAN
+//#define LOG_LIN_POT
+//#define LOG_TIRE_TEMP
 
 //costnats r probalby inportant
 #include "constants.h"
@@ -79,12 +81,18 @@ void setup() {
   Serial.println("This concludes our preflight checks. Welcome aboard!");
 }
 
-void loop() {
+// calls (most) tasks, each task that is called handles its own frame rate to avoid doing stuff too often
+void loopWithoutTireTemp() {
   toggLED();
   readLP();
   //readSGs();
-  readTireTemp();
   readBrakeTemp();
+}
+
+// calls tasks, each task that is called handles its own frame rate to avoid doing stuff too often
+void loop() {
+  loopWithoutTireTemp();
+  readTireTemp();
 }
 
 //when its time has come: read linpot
@@ -93,13 +101,15 @@ void readLP() {
   
   //get data
   uint16_t anaOut = analogRead(LIN_POT_PIN);
+#ifdef LOG_LIN_POT
   Serial.print(F("Reading Linear Potentiometer: "));
   Serial.println(anaOut);
+#endif
 
   uint8_t msg[8] = {(uint8_t)(anaOut >> 8), (uint8_t)(anaOut), 0, 0, 0, 0, 0, 0};
   CAN0.sendMsgBuf(CAN_ID_FRAME + CAN_ID_LIN_POT, 1, 8, msg);
 
-  nextLPMicros += LIN_POT_READ_INT;
+  nextLPMicros = micros() + LIN_POT_READ_INT;
 }
 
 //read from the 2 ADCs which have 3 strain gauges each
@@ -141,8 +151,8 @@ void toggLED(){
 }
 
 //helper method for readTireTemp and readBrakeTemp
-void printEightBytes(uint8_t* block) {
-  for (int i = 0; i < 8; i++) {
+void printBlock(uint8_t* block) {
+  for (int i = 0; i < BLOCK_SIZE; i++) {
     if (block[i] < 0x10) {
       Serial.print("0");
     }
@@ -151,34 +161,59 @@ void printEightBytes(uint8_t* block) {
   Serial.println();
 }
 
+int ID_FOR_TIRETEMP_BLOCKS = 0;
+
 // warning, this function does not check length, so there must be exactly 8 bytes
 // (the length of a CAN message body) in the block, no more and no less
 void tireTempOverCAN(uint8_t* block) {
-  #ifdef LOG_CAN
-    Serial.println("Sending tire temp block over CAN...");
-  #endif
-  for(int block_offset = 0; block_offset < 64; block_offset += 8){
-    CAN0.sendMsgBuf(CAN_ID_FRAME + CAN_ID_TIRE_DATA, 1, 8, block + block_offset);
+  loopWithoutTireTemp(); // in case we've been stuck on this task for a long time, give the other tasks a chance
+#ifdef LOG_CAN
+  Serial.println("Sending tire temp block over CAN...");
+#endif
+  for(int block_offset = 0; block_offset < BLOCK_SIZE; block_offset += 8){
+    int res;
+    do {
+      res = CAN0.sendMsgBuf(CAN_ID_FRAME + CAN_ID_TIRE_DATA + (++ID_FOR_TIRETEMP_BLOCKS % 0x100), 1, 8, block + block_offset);
+      if (res) {
+        delay(5);
+        loopWithoutTireTemp(); // in case we've been stuck on this task for a long time, give the other tasks a chance
+      }
+    } while (res);
+//    if (res) Serial.println("Got non-zero result for attempt to send tire temp block!");
+//    Serial.println(res);
+//    delay(10);
+#ifdef LOG_CAN
+    if (res) Serial.println("Got non-zero result for attempt to send tire temp block!");
+#endif
   }
 }
 
  void readTireTemp() {
+  ID_FOR_TIRETEMP_BLOCKS = 0;
 
   if(micros() < nextTireTempMicros)return;
-
+#ifdef LOG_TIRE_TEMP
   Serial.print(F("Sending CAN delim for start of tire temp "));
   Serial.println((long) tireTempIndex.integer, 16);
+#endif
   CAN0.sendMsgBuf(CAN_ID_FRAME + CAN_ID_TIRE_START, 1, 8, tireTempIndex.bytes);
 
   int result;
   uint8_t msg[8];
+#ifdef LOG_TIRE_TEMP
   Serial.println("Reading first tire temp half-frame");
-  result = MLX90640_dumpFrameData(tireTempOverCAN);
+#endif
+  result = MLX90640_dumpFrameData(/*printBlock*/ tireTempOverCAN);
   msg[0] = (uint32_t) result;
+#ifdef LOG_TIRE_TEMP
   Serial.println(result);
   Serial.println("Reading second tire temp half-frame");
-  result = MLX90640_dumpFrameData(tireTempOverCAN);
+#endif
+  result = MLX90640_dumpFrameData(/*printBlock*/ tireTempOverCAN);
   msg[1] = (uint32_t) result;
+#ifdef LOG_TIRE_TEMP
+  Serial.println(result);
+#endif
   
   CAN0.sendMsgBuf(CAN_ID_FRAME + CAN_ID_TIRE_END, 1, 8, tireTempIndex.bytes);
 
@@ -191,4 +226,8 @@ void tireTempOverCAN(uint8_t* block) {
  }
 
  void readBrakeTemp() {
+  if(micros() < nextBrkTempMicros)return;
+
+  // insert code here
+  nextBrkTempMicros = micros() + BRK_TEMP_READ_INT;
  }

@@ -189,7 +189,9 @@ void loop(void) {
   read_EGT();
   wireless_tele();
   send_log_status();
+  read_CAN();
   flush();
+  read_CAN();
   update_shift_lights();
   shift();
 }
@@ -405,7 +407,15 @@ void prep_3463(){
 //Check all CAN messages, log them, and send some to telemetry
 void read_CAN(){
 
+//  Serial.println("looply can scan");
   while ( can2.read(msg) ) {
+//    Serial.print("MSGID: ");
+//    Serial.print(msg.id, HEX);
+//    Serial.print(";\tMSG: ");
+//    for (int i = 0; i < msg.len; i++) {
+//      Serial.print(msg.buf[i]);
+//    }
+//    Serial.println();
     
     //create an empty string
     char data_string[100] = {0};
