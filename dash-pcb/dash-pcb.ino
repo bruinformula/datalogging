@@ -198,16 +198,16 @@ void setup(void) {
 }
 
 void loop(void) {
-  read_3463();
+  // read_3463();
   read_CAN();
   resetPneumatics();
-  read_EGT();
-  read_GPS();
-  wireless_tele();
-  send_log_status();
+  // read_EGT();
+  // read_GPS();
+  // wireless_tele();
+  // send_log_status();
   read_CAN();
-  flush();
-  read_CAN();
+  // flush();
+  // read_CAN();
   update_shift_lights();
   shift();
 }

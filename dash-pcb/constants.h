@@ -48,7 +48,7 @@
 
 // timing for shifting
 const uint32_t UPSHIFT_PNEUMATIC_TIME[5] = {75000, 75000, 75000, 75000, 75000};         // per gear timing {N->1, 1->2, 2->3, 3->4, 4->5}
-const uint32_t DOWNSHIFT_PNEUMATIC_TIME[5] = {8420, 100000, 100000, 100000, 100000};    // per gear timing {1->N, 2->1, 3->2, 4->3, 5->4}
+const uint32_t DOWNSHIFT_PNEUMATIC_TIME[7] = {8420, 100000, 100000, 100000, 100000, 0, 0};    // per gear timing {1->N, 2->1, 3->2, 4->3, 5->4}
 const uint32_t UPSHIFT_DELAY_TIME[5] = {0, 0, 0, 0, 0};                                 // per gear delay {N->1, 1->2, 2->3, 3->4, 4->5}
 const uint32_t SHIFT_DEBOUNCE_TIME = 2000;      // debounce for button
 const uint32_t UPSHIFT_PAUSE_TIME = 200000;     // timing between paddle presses to avoid saturating the piston
