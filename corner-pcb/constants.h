@@ -8,6 +8,7 @@
 //pin shit
 #define LIN_POT_PIN A0
 #define BLINK_LED_PIN 2
+#define WHS_PIN 3
 
 union CAN_msg_data{
   uint64_t integer;
@@ -20,7 +21,8 @@ union CAN_msg_data{
 #define SG_READ_INT         42069
 #define BRK_TEMP_READ_INT   50000
 #define TIRE_TEMP_READ_INT  2000000
-#define BLINK_LED_INT       500000
+#define BLINK_LED_INT       200000
+#define WHS_SEND_INT        50000
 
 #define ADCA_ADDR 0x48
 #define ADCB_ADDR 0x49
@@ -51,3 +53,4 @@ union CAN_msg_data{
 #define CAN_ID_TIRE_DATA  0x0006000
 #define CAN_ID_TIRE_END   0x0007000
 #define CAN_ID_TIRE_ERR   0x0008000
+#define CAN_ID_WHS        0x0009000

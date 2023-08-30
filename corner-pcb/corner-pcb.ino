@@ -8,9 +8,6 @@
 //costnats r probalby inportant
 #include "constants.h"
 
-// custom mlx90640 low-memory code
-#include "mlx90640.hpp"
-
 //stadard shit
 #include <stdint.h>
 #include <Arduino.h>
@@ -25,22 +22,18 @@
 
 //next time reads should be read (in microseconds)
 uint32_t nextLPMicros;
-uint32_t nextSGMicros;
 uint32_t nextBrkTempMicros;
-uint32_t nextTireTempMicros;
 uint32_t nextToggMicros;
+uint32_t nextWhsMicros;
+
+volatile uint32_t lastWhsWidth = 0xFFFFFFFF;
+volatile uint32_t lastWhsStart = 0;
+volatile bool whsState;
 
 bool ledState;
 
-//init adc objects
-Adafruit_ADS1115 ADCA;
-Adafruit_ADS1115 ADCB;
-
-
 //send data array
 uint8_t canMsg[8];
-
-CAN_msg_data tireTempIndex;
 
 MCP_CAN CAN0(9);     // Declare CAN controller
 
@@ -50,19 +43,11 @@ void setup() {
   Serial.print(F("Starting Corner PCB "));
   Serial.println(BOARD_INDEX);
   
-  Wire.setClock( 400000UL);
+  Wire.setClock(400000UL);
   
   pinMode(BLINK_LED_PIN, OUTPUT);
-  //init lin pot
   pinMode(LIN_POT_PIN, INPUT);
-  
-  Serial.println("Starting ADCs");
-  //init ADCs shit
-  ADCA.begin(ADCA_ADDR);  // Initialize ADC A at address 0x48 
-  ADCA.setGain(GAIN_SIXTEEN);
-  ADCB.begin(ADCB_ADDR);  // Initialize ADC B at address 0x49
-  ADCB.setGain(GAIN_SIXTEEN);
-  Serial.println("ADC Initialization complete.");
+  pinMode(WHS_PIN, INPUT);
 
   //init can shit (500kbps, 16 MHZ)
   Serial.println(F("Initializing MCP2515"));
@@ -72,27 +57,40 @@ void setup() {
     Serial.println(F("Error Initializing MCP2515..."));
   CAN0.setMode(MCP_NORMAL);
 
-  //init tiretemp
-  Serial.println(F("Starting up the MLX..."));
-  Serial.println(MLX90640_init() ? "...Succeeded!" : "...Failed!");
-
   //ok done initializing w
   digitalWrite(BLINK_LED_PIN, HIGH);
   Serial.println("This concludes our preflight checks. Welcome aboard!");
+
+  attachInterrupt(digitalPinToInterrupt(3), whsInt, RISING);
 }
 
-// calls (most) tasks, each task that is called handles its own frame rate to avoid doing stuff too often
-void loopWithoutTireTemp() {
+void loop() {
   toggLED();
   readLP();
-  //readSGs();
   readBrakeTemp();
+  readWhs();
 }
 
-// calls tasks, each task that is called handles its own frame rate to avoid doing stuff too often
-void loop() {
-  loopWithoutTireTemp();
-  readTireTemp();
+void whsInt(){
+  uint32_t currentTime = micros();
+  lastWhsWidth = currentTime - lastWhsStart;
+  lastWhsStart = currentTime;
+}
+
+void readWhs(){
+  
+  if (micros() < nextWhsMicros) return;
+  
+  uint8_t msg[8] = {
+      (uint8_t)((lastWhsWidth & 0xFF000000) >> 24), 
+      (uint8_t)((lastWhsWidth & 0x00FF0000) >> 16), 
+      (uint8_t)((lastWhsWidth & 0x0000FF00) >> 8), 
+      (uint8_t)((lastWhsWidth & 0x000000FF) >> 0), 
+      0, 0, 0, 0};
+  CAN0.sendMsgBuf(CAN_ID_FRAME + CAN_ID_WHS, 1, 8, msg);
+  
+  nextWhsMicros = micros() + WHS_SEND_INT;
+  
 }
 
 //when its time has come: read linpot
@@ -112,30 +110,6 @@ void readLP() {
   nextLPMicros = micros() + LIN_POT_READ_INT;
 }
 
-//read from the 2 ADCs which have 3 strain gauges each
-void readSGs() {
-  if (micros() < nextSGMicros) return;
-  int16_t SGA0 = ADCA.readADC_Differential_0_3();
-  int16_t SGA1 = ADCA.readADC_Differential_1_3();
-  int16_t SGA2 = ADCA.readADC_Differential_2_3();
-  
-  uint8_t msgA[8] = {(uint8_t)(SGA0 >> 8), (uint8_t)(SGA0),(uint8_t)(SGA1 >> 8),  (uint8_t)(SGA1), 
-                  (uint8_t)(SGA2 >> 8), (uint8_t)(SGA2), 0, 0};
-  
-  CAN0.sendMsgBuf(CAN_ID_FRAME + CAN_ID_ADCA, 1, 8, msgA);
-
-  int16_t SGB0 = ADCB.readADC_Differential_0_3();
-  int16_t SGB1 = ADCB.readADC_Differential_1_3();
-  int16_t SGB2 = ADCB.readADC_Differential_2_3();
-  
-  uint8_t msgB[8] = {(uint8_t)(SGB0 >> 8), (uint8_t)(SGB0),(uint8_t)(SGB1 >> 8),  (uint8_t)(SGB1), 
-                  (uint8_t)(SGB2 >> 8), (uint8_t)(SGB2), 0, 0};
-  
-  CAN0.sendMsgBuf(CAN_ID_FRAME + CAN_ID_ADCB, 1, 8, msgB);
-
-  nextSGMicros = micros() + SG_READ_INT;
-}
-
 void toggLED(){
   if (micros() < nextToggMicros) 
     return;
@@ -150,82 +124,7 @@ void toggLED(){
   nextToggMicros = micros() + BLINK_LED_INT;
 }
 
-//helper method for readTireTemp and readBrakeTemp
-void printBlock(uint8_t* block) {
-  for (int i = 0; i < BLOCK_SIZE; i++) {
-    if (block[i] < 0x10) {
-      Serial.print("0");
-    }
-    Serial.print(block[i], HEX);
-  }
-  Serial.println();
-}
-
-int ID_FOR_TIRETEMP_BLOCKS = 0;
-
-// warning, this function does not check length, so there must be exactly 8 bytes
-// (the length of a CAN message body) in the block, no more and no less
-void tireTempOverCAN(uint8_t* block) {
-  loopWithoutTireTemp(); // in case we've been stuck on this task for a long time, give the other tasks a chance
-#ifdef LOG_CAN
-  Serial.println("Sending tire temp block over CAN...");
-#endif
-  for(int block_offset = 0; block_offset < BLOCK_SIZE; block_offset += 8){
-    int res;
-    do {
-      res = CAN0.sendMsgBuf(CAN_ID_FRAME + CAN_ID_TIRE_DATA + (++ID_FOR_TIRETEMP_BLOCKS % 0x100), 1, 8, block + block_offset);
-      if (res) {
-        delay(5);
-        loopWithoutTireTemp(); // in case we've been stuck on this task for a long time, give the other tasks a chance
-      }
-    } while (res);
-//    if (res) Serial.println("Got non-zero result for attempt to send tire temp block!");
-//    Serial.println(res);
-//    delay(10);
-#ifdef LOG_CAN
-    if (res) Serial.println("Got non-zero result for attempt to send tire temp block!");
-#endif
-  }
-}
-
- void readTireTemp() {
-  ID_FOR_TIRETEMP_BLOCKS = 0;
-
-  if(micros() < nextTireTempMicros)return;
-#ifdef LOG_TIRE_TEMP
-  Serial.print(F("Sending CAN delim for start of tire temp "));
-  Serial.println((long) tireTempIndex.integer, 16);
-#endif
-  CAN0.sendMsgBuf(CAN_ID_FRAME + CAN_ID_TIRE_START, 1, 8, tireTempIndex.bytes);
-
-  int result;
-  uint8_t msg[8];
-#ifdef LOG_TIRE_TEMP
-  Serial.println("Reading first tire temp half-frame");
-#endif
-  result = MLX90640_dumpFrameData(/*printBlock*/ tireTempOverCAN);
-  msg[0] = (uint32_t) result;
-#ifdef LOG_TIRE_TEMP
-  Serial.println(result);
-  Serial.println("Reading second tire temp half-frame");
-#endif
-  result = MLX90640_dumpFrameData(/*printBlock*/ tireTempOverCAN);
-  msg[1] = (uint32_t) result;
-#ifdef LOG_TIRE_TEMP
-  Serial.println(result);
-#endif
-  
-  CAN0.sendMsgBuf(CAN_ID_FRAME + CAN_ID_TIRE_END, 1, 8, tireTempIndex.bytes);
-
-  CAN0.sendMsgBuf(CAN_ID_FRAME + CAN_ID_TIRE_ERR, 1, 8, msg);
-
-  tireTempIndex.integer++;
-
-  nextTireTempMicros = micros() + TIRE_TEMP_READ_INT;
-
- }
-
- void readBrakeTemp() {
+void readBrakeTemp() {
   if(micros() < nextBrkTempMicros)return;
 
   // insert code here
