@@ -61,6 +61,7 @@ void setup() {
   digitalWrite(BLINK_LED_PIN, HIGH);
   Serial.println("This concludes our preflight checks. Welcome aboard!");
 
+  //call function whsInt on wheel speed pin rising edge
   attachInterrupt(digitalPinToInterrupt(3), whsInt, RISING);
 }
 
@@ -71,12 +72,18 @@ void loop() {
   readWhs();
 }
 
+//called on wheel speed sensor rising edge
 void whsInt(){
+  //store current time
   uint32_t currentTime = micros();
+  //sets most recent cycle length to microseconds since last rising edge
   lastWhsWidth = currentTime - lastWhsStart;
+  //reset time
   lastWhsStart = currentTime;
 }
 
+//if it's been enough time, send a can message with the wheel speed cycle time in 
+//microseconds. Uses first 4 bytes of message, MSB first
 void readWhs(){
   
   if (micros() < nextWhsMicros) return;
