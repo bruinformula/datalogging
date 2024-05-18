@@ -249,7 +249,7 @@ void loop() {
   // readWriteWheelTemp();
 
 
-  if (TWAI_ALERT_RX_DATA) {
+
     // One or more messages received. Handle all.
     twai_message_t message;
     while (twai_receive(&message, 0) == ESP_OK) {
@@ -266,7 +266,6 @@ void loop() {
         Serial.println("");
       }
     }
-  }
   
 }
 
@@ -282,13 +281,14 @@ void sendCanMsg(uint32_t id, uint8_t msg[]){
 
     if (twai_transmit(&message, pdMS_TO_TICKS(1000)) == ESP_OK) {
       Serial.print("Message queued for transmission\n");
+      twai_status_info_t status_info;
+      twai_get_status_info(&status_info);
+      Serial.println(status_info.state);
     } else {
-      Serial.println("Failed to queue message for transmission\n");
+      // Serial.println("Failed to queue message for transmission\n");
     }
 
-    twai_status_info_t status_info;
-    twai_get_status_info(&status_info);
-    Serial.println(status_info.state);
+    
 }
 
 

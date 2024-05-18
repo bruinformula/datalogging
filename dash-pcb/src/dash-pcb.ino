@@ -33,6 +33,7 @@
 #define LOG_DATA_TO_SERIAL
 #define LOG_VERSION 3
 
+
 // The I2C device. Determines which pins we use on the Teensy.
 I2CMaster& master = Master2;
 //objects for the i2c sensors (adafruit 3463)
