@@ -6,6 +6,12 @@
 
 // I2C communication library
 #include <i2c_device.h>
+#include <SPI.h>
+
+// RTD sound
+#include "Adafruit_TPA2016.h"
+#include "AudioSamples.h"
+#include <Audio.h>
 
 // CAN libraries
 #include <FlexCAN_T4.h>
@@ -24,35 +30,15 @@
 #include <avr/interrupt.h>
 #include <avr/io.h>
 
-// GPS libraries
-#include <SoftwareSerial.h>
-#include <TimeLib.h>
-#include <TinyGPS.h>
-
 #define LOG_DATA_TO_SERIAL
 #define LOG_VERSION 4
 
 // The I2C device. Determines which pins we use on the Teensy.
 I2CMaster& master = Master2;
-// // objects for the i2c sensors (adafruit 3463)
+// objects for the i2c sensors (adafruit 3463)
 // I2CDevice acc_mag = I2CDevice(master, ACC_MAG_ADDR, _BIG_ENDIAN);
 // I2CDevice gyr = I2CDevice(master, GYR_ADDR, _BIG_ENDIAN);
-
-// GPS objects
-// TinyGPS gps;
-// String newNMEA = "";
-// String GPGGANMEA = "";
-// String GPRMCNMEA = "";
-
-/*
-int tele_data_1B[15];    // intList: ACCX, ACCY, ACCZ, GYRX, GYRY, GYRZ,
-                         // exTemp(C), intakeTemp(C), coolantTemp(C), lambda1,
-                         // dbtdc, fpr, to2, injduty
-int tele_data_2B[5][2];  // list for 2-byte data: engineSpeed(RPM),
-                         // engineLoad(%), throttle(%), MAP(kPa), V_BAT
-bool tele_data_fan1;     // fan 1 status
-bool tele_data_fpump;    // fuel pump status
-*/
+I2CDevice speaker = I2CDevice(master, SPEAKER_ADDR, _BIG_ENDIAN);
 
 FlexCAN_T4<CAN3, RX_SIZE_16, TX_SIZE_16> can3;
 CAN_message_t msg;
@@ -75,15 +61,14 @@ uint32_t next_shift_light_frame_micros;
 uint32_t next_status_micros;
 uint32_t next_egt_micros;
 uint32_t next_flush_micros;
-uint32_t next_gps_micros;
+uint32_t next_rtd_micros;
 
 // for shift light color control
 uint32_t color_red, color_green, color_blue, color_yellow, color_white,
     color_purple;
 
 Adafruit_NeoPixel strip =
-    Adafruit_NeoPixel(16, SHIFT_LIGHTS_PIN, NEO_GRB + NEO_KHZ800);
-
+    Adafruit_NeoPixel(8, SHIFT_LIGHTS_PIN, NEO_GRB + NEO_KHZ800);
 
 // function instantiation
 void prep_SD();
@@ -91,8 +76,36 @@ void read_CAN();
 void log_pair(String, String);
 void send_log_status();
 void flush();
-void read_GPS();
+void check_RTD();
 
+// speaker amp control
+Adafruit_TPA2016 audioAmp = Adafruit_TPA2016();
+AudioPlayMemory    sound0;
+AudioPlayMemory    sound1;  // six memory players, so we can play
+AudioPlayMemory    sound2;  // all six sounds simultaneously
+AudioPlayMemory    sound3;
+AudioPlayMemory    sound4;
+AudioPlayMemory    sound5;
+AudioMixer4        mix1;    // two 4-channel mixers are needed in
+AudioMixer4        mix2;    // tandem to combine 6 audio sources
+AudioOutputI2S     headphones;
+AudioOutputAnalog  dac;     // play to both I2S audio board and on-chip
+AudioOutputAnalogStereo  dacs1;          //xy=361,179
+
+
+// Create Audio connections between the components
+AudioConnection c1(sound0, 0, mix1, 0);
+AudioConnection c2(sound1, 0, mix1, 1);
+AudioConnection c3(sound2, 0, mix1, 2);
+AudioConnection c4(sound3, 0, mix1, 3);
+AudioConnection c5(mix1, 0, mix2, 0);   // output of mix1 into 1st input on mix2
+AudioConnection c6(sound4, 0, mix2, 1);
+AudioConnection c7(sound5, 0, mix2, 2);
+AudioConnection c8(mix2, 0, headphones, 0);
+AudioConnection c9(mix2, 0, headphones, 1);
+AudioConnection c10(mix2, 0, dac, 0);
+
+AudioControlSGTL5000 audioShield;
 
 void setup(void) {
   // shift light color and object initiation
@@ -163,8 +176,31 @@ void setup(void) {
   strip.setPixelColor(13, color_blue);
   strip.show();
 
-  // Initialize accelerometer and gyroscope
-  log_file.flush();
+  // Audio connections require memory to work.  For more
+  // detailed information, see the MemoryAndCpuUsage example
+  AudioMemory(5);
+
+  // turn on the output
+  audioShield.enable();
+  audioShield.volume(10);
+
+  // reduce the gain on mixer channels, so more than 1
+  // sound can play simultaneously without clipping
+  mix1.gain(0, 20);
+  mix1.gain(1, 20);
+  mix1.gain(2, 20);
+  mix1.gain(3, 20);
+  mix2.gain(1, 20);
+  mix2.gain(2, 20);
+  
+  audioAmp.begin();
+  audioAmp.setReleaseControl(0);
+  audioAmp.setAGCCompression(TPA2016_AGC_2);
+  audioAmp.setLimitLevelOff();
+  audioAmp.setAttackControl(5);
+  audioAmp.setHoldControl(0);
+  audioAmp.setReleaseControl(11);
+
 
   strip.setPixelColor(14, color_blue);
   strip.show();
@@ -179,18 +215,20 @@ void setup(void) {
   strip.setPixelColor(15, color_blue);
   strip.show();
 
-  // setup shifting and set default state
+  // setup RTD pins
+  pinMode(RTD_PIN, INPUT_PULLUP);
+  pinMode(DACPin, OUTPUT);
 
   delay(200);
 }
 
 void loop(void) {
   read_CAN();
-  read_GPS();
   send_log_status();
   read_CAN();
   flush();
   read_CAN();
+  check_RTD();
 }
 
 // Initialize the SD card and make a new folder
@@ -327,3 +365,10 @@ void flush() {
   }
 }
 
+void check_RTD() {
+  if(micros() < next_rtd_micros) return;
+  next_rtd_micros = micros() + RTD_MICROS_INCR; 
+  if(digitalRead(RTD_PIN) == LOW) {
+    sound0.play(AudioSampleMetalpipe);
+  }
+}

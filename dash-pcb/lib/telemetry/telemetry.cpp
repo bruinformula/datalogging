@@ -1,4 +1,13 @@
 //telemetry shits
+/*
+int tele_data_1B[15];    // intList: ACCX, ACCY, ACCZ, GYRX, GYRY, GYRZ,
+                         // exTemp(C), intakeTemp(C), coolantTemp(C), lambda1,
+                         // dbtdc, fpr, to2, injduty
+int tele_data_2B[5][2];  // list for 2-byte data: engineSpeed(RPM),
+                         // engineLoad(%), throttle(%), MAP(kPa), V_BAT
+bool tele_data_fan1;     // fan 1 status
+bool tele_data_fpump;    // fuel pump status
+*/
 
 // send string for wireless telementry
 void wireless_tele() {

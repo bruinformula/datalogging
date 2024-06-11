@@ -1,3 +1,14 @@
+// GPS libraries
+#include <SoftwareSerial.h>
+#include <TimeLib.h>
+#include <TinyGPS.h>
+
+// GPS objects
+// TinyGPS gps;
+// String newNMEA = "";
+// String GPGGANMEA = "";
+// String GPRMCNMEA = "";
+
 void read_GPS() {
   // Parse GPS data if received
   while (gpsSerial.available()) {

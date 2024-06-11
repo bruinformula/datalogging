@@ -9,6 +9,8 @@
 #define ACC_MAG_CTRL_REG_1        0x2A
 #define ACC_MAG_XYZ_DATA_CFG_REG  0x0El
 
+#define SPK_EN_REG 0x01
+
 #define GYR_WHOAMI_REG            0x0C
 #define GYR_CTRL_REG0             0x0D
 #define GYR_CTRL_REG1             0x13
@@ -20,6 +22,7 @@
 #define ACC_MAG_ADDR              0x1F
 #define GYR_ADDR                  0x21
 #define EGT_AMP_ADDR              0x67
+#define SPEAKER_ADDR              0xB0
 
 // Pin Definitions
 #define FLATSHIFT_PIN     4       // flatshift pin
@@ -30,6 +33,8 @@
 #define DOWNSHIFT_PIN     30      // downshift paddle
 #define UPSHIFT_PIN       31      // upshift paddle
 #define WHEEL_SPARE_PIN   32      // spare wheel pin
+#define RTD_PIN           19      // RTD Button
+#define SPEAKERS_PIN      0
 
 // Microseconds between each periodic function
 #define IMU_MICROS_INCR            50000  // how often IMU samples
@@ -42,6 +47,7 @@
 #define STATUS_MICROS_INCR       1000000  // how often send dash PCB status to CANbus
 #define SHIFT_UPDATE_INCR           1000  // how often shifter checks if it needs to change state
 #define GPS_MICROS_INCR          1000000  // how often GPS data is logged
+#define RTD_MICROS_INCR            50000  // 20Hz update rate for RTD
 
 //GPS serial port
 #define gpsSerial Serial4
@@ -76,3 +82,8 @@ const uint32_t SL_BLINK_OFF = 160000;
 
 // when to blink shift lights red
 const int32_t EGT_THRES = 900;
+
+// DAC Pin
+const int DACPin = A0;
+
+#define DAC_RESOLUTION (8)
