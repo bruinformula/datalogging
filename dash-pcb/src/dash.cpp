@@ -30,6 +30,10 @@
 #include <avr/interrupt.h>
 #include <avr/io.h>
 
+// neopixels are cool
+#include "motor_rpm_lights.h"
+#include "battery_soc_lights.h"
+
 #define LOG_DATA_TO_SERIAL
 #define LOG_VERSION 4
 
@@ -219,6 +223,10 @@ void setup(void) {
   pinMode(RTD_PIN, INPUT_PULLUP);
   pinMode(DACPin, OUTPUT);
 
+  // init neopixels
+  init_battery_soc_lights();
+  init_motor_rpm_lights();
+
   delay(200);
 }
 
@@ -229,6 +237,8 @@ void loop(void) {
   flush();
   read_CAN();
   check_RTD();
+  loop_battery_soc_lights();
+  loop_motor_rpm_lights();
 }
 
 // Initialize the SD card and make a new folder
@@ -310,7 +320,9 @@ void read_CAN() {
       last_ecu_can_micros = micros();
     }
 
-    
+    if ((msg.id & 0x00FFFF00) == 0xF00400) {
+        update_motor_rpm(msg.buf, msg.len);
+    }
   }
 }
 
