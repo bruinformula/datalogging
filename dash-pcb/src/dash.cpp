@@ -186,21 +186,23 @@ void setup(void) {
 
   // turn on the output
   audioShield.enable();
-  audioShield.volume(10);
+  audioShield.volume(1);
 
-  // reduce the gain on mixer channels, so more than 1
-  // sound can play simultaneously without clipping
-  mix1.gain(0, 20);
-  mix1.gain(1, 20);
-  mix1.gain(2, 20);
-  mix1.gain(3, 20);
-  mix2.gain(1, 20);
-  mix2.gain(2, 20);
+  // the example: reduce the gain on mixer channels, so more than 1
+  //              sound can play simultaneously without clipping (set to 20.0)
+  // randall: set gain to the maximum value that the function allows (32767.0f)
+  mix1.gain(0, -32000);
+  mix1.gain(1, 0);
+  mix1.gain(2, 0);
+  mix1.gain(3, 0);
+  mix2.gain(1, 0);
+  mix2.gain(2, 0);
   
   audioAmp.begin();
   audioAmp.setReleaseControl(0);
   audioAmp.setAGCCompression(TPA2016_AGC_2);
   audioAmp.setLimitLevelOff();
+//   audioAmp.setGain(30);
   audioAmp.setAttackControl(5);
   audioAmp.setHoldControl(0);
   audioAmp.setReleaseControl(11);
@@ -220,7 +222,7 @@ void setup(void) {
   strip.show();
 
   // setup RTD pins
-  pinMode(RTD_PIN, INPUT_PULLUP);
+//   pinMode(RTD_PIN, INPUT_PULLUP);
   pinMode(DACPin, OUTPUT);
 
   // init neopixels
@@ -377,10 +379,28 @@ void flush() {
   }
 }
 
+static bool isRTD = false;
+
 void check_RTD() {
+    // Serial.print("Is RTD? ");
+    // Serial.println(isRTD);
+    if (digitalRead(SHUTDOWN_IN_PIN)) {
+        // Serial.println("TS OFF");
+        isRTD = false;
+        return;
+    }
+    if (isRTD) {
+        return;
+    }
   if(micros() < next_rtd_micros) return;
   next_rtd_micros = micros() + RTD_MICROS_INCR; 
-  if(digitalRead(RTD_PIN) == LOW) {
-    sound0.play(AudioSampleMetalpipe);
-  }
+    if((digitalRead(RTD_PIN) == LOW) && (analogRead(BSE_PIN) > 500)) {
+        sound0.play(AudioSampleMetalpipe);
+        Serial.println("Metal Pipe Falling!");
+        isRTD = true;
+    }
+    // Serial.print("RTD button reads ");
+    // Serial.println(digitalRead(RTD_PIN));
+    // Serial.print("BSE reads ");
+    // Serial.println(analogRead(BSE_PIN));
 }

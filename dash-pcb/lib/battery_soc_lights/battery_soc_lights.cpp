@@ -5,11 +5,11 @@
 #include <Arduino.h>
 
 static Adafruit_NeoPixel soc_strip = Adafruit_NeoPixel(8, SOC_LIGHTS_PIN, NEO_GRB + NEO_KHZ800);
-static uint32_t color_red = strip.Color(100, 0, 0);
-static uint32_t color_yellow = strip.Color(100, 50, 0);
-static uint32_t color_green = strip.Color(0, 100, 0);
-static uint32_t color_blue = strip.Color(0, 0, 100);
-static uint32_t color_off = strip.Color(0, 0, 0);
+static uint32_t color_red = soc_strip.Color(100, 0, 0);
+static uint32_t color_yellow = soc_strip.Color(100, 50, 0);
+static uint32_t color_green = soc_strip.Color(0, 100, 0);
+static uint32_t color_blue = soc_strip.Color(0, 0, 100);
+static uint32_t color_off = soc_strip.Color(0, 0, 0);
 
 void init_battery_soc_lights() {
     soc_strip.begin();

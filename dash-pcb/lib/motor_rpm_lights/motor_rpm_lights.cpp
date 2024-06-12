@@ -8,10 +8,10 @@ static int rpm_red = 4000;
 static int rpm_max = 5000;
 
 static Adafruit_NeoPixel rpm_strip = Adafruit_NeoPixel(8, RPM_LIGHTS_PIN, NEO_GRB + NEO_KHZ800);
-static uint32_t color_red = strip.Color(100, 0, 0);
-static uint32_t color_green = strip.Color(0, 100, 0);
-static uint32_t color_blue = strip.Color(0, 0, 100);
-static uint32_t color_off = strip.Color(0, 0, 0);
+static uint32_t color_red = rpm_strip.Color(100, 0, 0);
+static uint32_t color_green = rpm_strip.Color(0, 100, 0);
+static uint32_t color_blue = rpm_strip.Color(0, 0, 100);
+static uint32_t color_off = rpm_strip.Color(0, 0, 0);
 
 void init_motor_rpm_lights() {
     rpm_strip.begin();

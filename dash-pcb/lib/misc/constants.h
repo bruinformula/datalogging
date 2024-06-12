@@ -29,14 +29,16 @@
 #define RVS_PIN           5       // reverse solenoid
 #define FWD_PIN           6       // forward solenoid
 #define LED_PIN           13      // dash LEDs
-#define SHIFT_LIGHTS_PIN  4       // level translator for shift lights
-#define RPM_LIGHTS_PIN    2       // level translator for motor RPM lights
-#define SOC_LIGHTS_PIN    3       // level translator for accumulator SoC lights
+#define SHIFT_LIGHTS_PIN  0       // level translator for shift lights
+#define RPM_LIGHTS_PIN    1       // level translator for motor RPM lights
+#define SOC_LIGHTS_PIN    2       // level translator for accumulator SoC lights
 #define SOC_AIN_PIN       4       // analog signal from BMS to dash giving accumulator SoC
+#define BSE_PIN           22      // checks brake status
 #define DOWNSHIFT_PIN     30      // downshift paddle
 #define UPSHIFT_PIN       31      // upshift paddle
 #define WHEEL_SPARE_PIN   32      // spare wheel pin
-#define RTD_PIN           19      // RTD Button
+#define SHUTDOWN_IN_PIN   33      // determines if shutdown is active
+#define RTD_PIN           34      // RTD Button (it's been moved)
 #define SPEAKERS_PIN      0
 
 // Microseconds between each periodic function
